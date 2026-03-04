@@ -1,0 +1,28 @@
+{
+  "name": "erc-mandated-execution",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm -ws run build",
+    "test": "npm -ws run test",
+    "contract-check": "node scripts/contract-check.mjs",
+
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "changeset publish",
+
+    "pack-verify": "node scripts/pack-verify.mjs"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.30.0",
+    "@types/node": "^22.13.10",
+    "typescript": "^5.8.2"
+  }
+}

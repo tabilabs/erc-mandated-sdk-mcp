@@ -1,0 +1,446 @@
+{
+  "contractVersion": "v0.1.1-agent-contract",
+  "schemaVersion": "2026-03-03",
+  "tools": [
+    {
+      "name": "factory_predict_vault_address",
+      "description": "Predict vault address for given params without sending a transaction.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["asset", "name", "symbol", "authority", "salt"],
+        "properties": {
+          "chainId": { "type": "integer", "minimum": 1, "description": "EVM chain id" },
+          "factory": {
+            "type": "string",
+            "pattern": "^0x[a-fA-F0-9]{40}$",
+            "description": "VaultFactory address (optional if configured server-side)"
+          },
+          "asset": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "symbol": { "type": "string", "minLength": 1, "maxLength": 16 },
+          "authority": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "salt": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$", "description": "bytes32 salt" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["result"],
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["predictedVault"],
+            "properties": {
+              "predictedVault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" }
+            }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "factory_create_vault_prepare",
+      "description": "Prepare createVault transaction request (to/data/value=0). MCP MUST NOT send unless explicitly enabled.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["from", "asset", "name", "symbol", "authority", "salt"],
+        "properties": {
+          "chainId": { "type": "integer", "minimum": 1, "description": "EVM chain id" },
+          "factory": {
+            "type": "string",
+            "pattern": "^0x[a-fA-F0-9]{40}$",
+            "description": "VaultFactory address (optional if configured server-side)"
+          },
+          "from": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$", "description": "Transaction sender (vault creator)" },
+          "asset": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "symbol": { "type": "string", "minLength": 1, "maxLength": 16 },
+          "authority": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "salt": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$", "description": "bytes32 salt" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["txRequest", "predictedVault"],
+            "properties": {
+              "predictedVault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+              "txRequest": { "$ref": "#/definitions/txRequest" }
+            }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "vault_health_check",
+      "description": "Read vault health/state snapshot at a specific block (or latest).",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["vault"],
+        "properties": {
+          "chainId": { "type": "integer", "minimum": 1 },
+          "vault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "blockTag": { "type": "string", "description": "\"latest\" or a decimal block number string" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "blockNumber",
+              "vault",
+              "mandateAuthority",
+              "authorityEpoch",
+              "pendingAuthority",
+              "nonceThreshold",
+              "totalAssets"
+            ],
+            "properties": {
+              "blockNumber": { "type": "integer", "minimum": 0 },
+              "vault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+              "mandateAuthority": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+              "authorityEpoch": { "type": "string", "pattern": "^[0-9]+$" },
+              "pendingAuthority": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+              "nonceThreshold": { "type": "string", "pattern": "^[0-9]+$" },
+              "totalAssets": { "type": "string", "pattern": "^[0-9]+$" }
+            }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "vault_check_nonce",
+      "description": "Check if a mandate nonce has been used for a given authority on a vault.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["vault", "authority", "nonce"],
+        "properties": {
+          "chainId": { "type": "integer", "minimum": 1 },
+          "vault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "authority": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "nonce": { "type": "string", "pattern": "^[0-9]+$" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["used"],
+            "properties": {
+              "used": { "type": "boolean" },
+              "usedAtBlock": { "type": "integer", "minimum": 0 },
+              "usedInTx": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" }
+            }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "mandate_check_revoked",
+      "description": "Check if a mandate hash has been revoked.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["vault", "mandateHash"],
+        "properties": {
+          "chainId": { "type": "integer", "minimum": 1 },
+          "vault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "mandateHash": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["revoked"],
+            "properties": { "revoked": { "type": "boolean" } }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "mandate_build_sign_request",
+      "description": "Build canonical mandate + typed data for authority to sign. MCP MUST NOT sign for authority.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "vault",
+          "executor",
+          "nonce",
+          "deadline",
+          "authorityEpoch",
+          "allowedAdaptersRoot",
+          "maxDrawdownBps",
+          "maxCumulativeDrawdownBps",
+          "actions",
+          "extensions"
+        ],
+        "properties": {
+          "chainId": { "type": "integer", "minimum": 1 },
+          "vault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "executor": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "nonce": { "type": "string", "pattern": "^[0-9]+$" },
+          "deadline": { "type": "string", "pattern": "^[0-9]+$" },
+          "authorityEpoch": { "type": "string", "pattern": "^[0-9]+$" },
+          "allowedAdaptersRoot": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+          "maxDrawdownBps": { "type": "string", "pattern": "^[0-9]+$" },
+          "maxCumulativeDrawdownBps": { "type": "string", "pattern": "^[0-9]+$" },
+          "payloadBinding": { "type": "string", "enum": ["actionsDigest", "none"], "default": "actionsDigest" },
+          "actions": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 32,
+            "items": { "$ref": "#/definitions/action" }
+          },
+          "extensions": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["typedData", "mandate", "mandateHash", "actionsDigest", "extensionsHash"],
+            "properties": {
+              "typedData": { "type": "object" },
+              "mandate": { "$ref": "#/definitions/mandate" },
+              "mandateHash": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+              "actionsDigest": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+              "extensionsHash": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" }
+            }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "vault_simulate_execute",
+      "description": "Simulate execute call (eth_call) with given mandate/signature/actions/proofs and executor as from.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["vault", "from", "mandate", "signature", "actions", "adapterProofs", "extensions"],
+        "properties": {
+          "chainId": { "type": "integer", "minimum": 1 },
+          "vault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "from": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "mandate": { "$ref": "#/definitions/mandate" },
+          "signature": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" },
+          "actions": { "type": "array", "minItems": 1, "maxItems": 32, "items": { "$ref": "#/definitions/action" } },
+          "adapterProofs": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/bytes32Array" } },
+          "extensions": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["ok", "blockNumber"],
+            "properties": {
+              "ok": { "type": "boolean" },
+              "blockNumber": { "type": "integer", "minimum": 0 },
+              "preAssets": { "type": "string", "pattern": "^[0-9]+$" },
+              "postAssets": { "type": "string", "pattern": "^[0-9]+$" },
+              "revertDecoded": { "type": "object" }
+            }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "vault_execute_prepare",
+      "description": "Prepare execute transaction request (to/data/value=0).",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["vault", "from", "mandate", "signature", "actions", "adapterProofs", "extensions"],
+        "properties": {
+          "chainId": { "type": "integer", "minimum": 1 },
+          "vault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "from": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "mandate": { "$ref": "#/definitions/mandate" },
+          "signature": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" },
+          "actions": { "type": "array", "minItems": 1, "maxItems": 32, "items": { "$ref": "#/definitions/action" } },
+          "adapterProofs": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/bytes32Array" } },
+          "extensions": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["txRequest"],
+            "properties": {
+              "txRequest": { "$ref": "#/definitions/txRequest" },
+              "audit": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "mandateHash": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+                  "actionsDigest": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" }
+                }
+              }
+            }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "vault_revoke_mandate_prepare",
+      "description": "Prepare revokeMandate transaction request (authority-only).",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["vault", "from", "mandateHash"],
+        "properties": {
+          "chainId": { "type": "integer", "minimum": 1 },
+          "vault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "from": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "mandateHash": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["txRequest"],
+            "properties": { "txRequest": { "$ref": "#/definitions/txRequest" } }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "vault_invalidate_nonce_prepare",
+      "description": "Prepare invalidateNonce transaction request (authority-only).",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["vault", "from", "nonce"],
+        "properties": {
+          "chainId": { "type": "integer", "minimum": 1 },
+          "vault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "from": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "nonce": { "type": "string", "pattern": "^[0-9]+$" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["txRequest"],
+            "properties": { "txRequest": { "$ref": "#/definitions/txRequest" } }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "toolError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Z0-9_]+$" },
+        "message": { "type": "string", "minLength": 1 },
+        "details": { "type": "object" },
+        "suggestion": { "type": "string" }
+      }
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["adapter", "value", "data"],
+      "properties": {
+        "adapter": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "value": { "type": "string", "pattern": "^[0-9]+$" },
+        "data": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" }
+      }
+    },
+    "mandate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "vault",
+        "executor",
+        "nonce",
+        "deadline",
+        "authorityEpoch",
+        "allowedAdaptersRoot",
+        "maxDrawdownBps",
+        "maxCumulativeDrawdownBps",
+        "payloadDigest",
+        "extensionsHash"
+      ],
+      "properties": {
+        "vault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "executor": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "nonce": { "type": "string", "pattern": "^[0-9]+$" },
+        "deadline": { "type": "string", "pattern": "^[0-9]+$" },
+        "authorityEpoch": { "type": "string", "pattern": "^[0-9]+$" },
+        "allowedAdaptersRoot": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+        "maxDrawdownBps": { "type": "string", "pattern": "^[0-9]+$" },
+        "maxCumulativeDrawdownBps": { "type": "string", "pattern": "^[0-9]+$" },
+        "payloadDigest": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+        "extensionsHash": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" }
+      }
+    },
+    "bytes32Array": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" }
+    },
+    "txRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to", "data", "value"],
+      "properties": {
+        "from": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "to": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "data": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" },
+        "value": { "type": "string", "pattern": "^[0-9]+$" },
+        "gas": { "type": "string", "pattern": "^[0-9]+$" }
+      }
+    }
+  }
+}

@@ -1,0 +1,230 @@
+import { pathToFileURL } from "node:url";
+
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+
+import * as sdk from "@erc-mandated/sdk";
+
+const DEFAULT_SDK_ADAPTER = {
+  healthCheckVault: sdk.healthCheckVault,
+  buildMandateSignRequest: sdk.buildMandateSignRequest,
+  predictVaultAddress: sdk.predictVaultAddress,
+  prepareCreateVaultTx: sdk.prepareCreateVaultTx,
+  simulateExecuteVault: sdk.simulateExecuteVault,
+  prepareExecuteTx: sdk.prepareExecuteTx,
+
+  checkNonceUsed: sdk.checkNonceUsed,
+  checkMandateRevoked: sdk.checkMandateRevoked,
+  prepareInvalidateNonceTx: sdk.prepareInvalidateNonceTx,
+  prepareRevokeMandateTx: sdk.prepareRevokeMandateTx
+};
+
+import { type LoadedTool, loadTools } from "./contract/loadTools.js";
+import { toToolError } from "./errors.js";
+import { buildErrorToolResult, makeTextContent, normalizeAjvErrors } from "./errorResponse.js";
+import { ensurePayloadMatchesOutputSchema } from "./schemaRepair.js";
+import { handleToolCall } from "./tools/handlers.js";
+import type { SdkAdapter } from "./tools/sdkAdapter.js";
+
+export interface McpInfo {
+  name: string;
+  version: string;
+}
+
+export function getMcpInfo(): McpInfo {
+  return {
+    name: "@erc-mandated/mcp",
+    version: "0.1.0"
+  };
+}
+
+export interface ToolError {
+  code: string;
+  message: string;
+  details?: Record<string, unknown>;
+  suggestion?: string;
+}
+
+type JsonObject = Record<string, unknown>;
+
+function isObject(value: unknown): value is JsonObject {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export async function createMcpServer(options?: {
+  sdkAdapter?: SdkAdapter;
+}): Promise<{ server: Server }> {
+  const info = getMcpInfo();
+  const contract = await loadTools();
+
+  const server = new Server(
+    {
+      name: info.name,
+      version: info.version
+    },
+    {
+      capabilities: {
+        tools: {
+          listChanged: false
+        }
+      }
+    }
+  );
+
+  const tools = contract.tools;
+  const toolByName = new Map<string, LoadedTool>(tools.map((tool) => [tool.name, tool]));
+
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    return {
+      tools: tools.map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+        outputSchema: tool.outputSchema
+      }))
+    };
+  });
+
+  const logLevel = process.env.MCP_LOG_LEVEL ?? "info";
+
+  function logJsonl(event: Record<string, unknown>) {
+    if (logLevel === "none") {
+      return;
+    }
+    try {
+      process.stderr.write(`${JSON.stringify(event)}\n`);
+    } catch {
+      // ignore logging failures
+    }
+  }
+
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const tool = toolByName.get(request.params.name);
+
+    if (!tool) {
+      const error = toToolError("TOOL_NOT_FOUND", `Tool not found: ${request.params.name}`);
+      return {
+        isError: true,
+        content: makeTextContent(error.message),
+        structuredContent: { error }
+      };
+    }
+
+    const validInput = tool.validateInput(request.params.arguments ?? {});
+    if (!validInput) {
+      return buildErrorToolResult(
+        tool,
+        toToolError("INVALID_INPUT", normalizeAjvErrors(tool.validateInput.errors ?? []), {
+          tool: tool.name,
+          validationErrors: {
+            errors: (tool.validateInput.errors ?? []) as unknown
+          }
+        })
+      );
+    }
+
+    const startedAt = Date.now();
+    logJsonl({
+      event: "tool.call.start",
+      toolName: tool.name,
+      contractVersion: contract.contractVersion
+    });
+
+    const sdkAdapter = options?.sdkAdapter ?? DEFAULT_SDK_ADAPTER;
+
+    const structured = await handleToolCall(tool.name, request.params.arguments ?? {}, sdkAdapter);
+
+    const normalized = ensurePayloadMatchesOutputSchema(tool, structured);
+    if (normalized.addedResultFromSchemaRepair && isObject(structured.error)) {
+      const maybeErr = structured.error as unknown as Partial<ToolError>;
+      if (typeof maybeErr.message === "string") {
+        // preserve existing behavior: mark schema repair explicitly in error.details
+        const err = structured.error as unknown as ToolError;
+        const existingDetails = isObject(err.details) ? err.details : {};
+        normalized.payload.error = {
+          ...err,
+          details: {
+            ...existingDetails,
+            addedResultFromSchemaRepair: true
+          }
+        };
+      }
+    }
+
+    // If handler returned an error payload, keep isError=true for MCP semantics.
+    if (isObject(normalized.payload.error)) {
+      const err = normalized.payload.error as unknown as ToolError;
+      logJsonl({
+        event: "tool.call.end",
+        toolName: tool.name,
+        contractVersion: contract.contractVersion,
+        durationMs: Date.now() - startedAt,
+        isError: true,
+        addedResultFromSchemaRepair: normalized.addedResultFromSchemaRepair
+      });
+      return {
+        isError: true,
+        content: makeTextContent(err.message),
+        structuredContent: normalized.payload
+      };
+    }
+
+    // Final hard gate: output must match frozen outputSchema even on success paths.
+    if (!tool.validateOutput(normalized.payload)) {
+      const internalError: ToolError = {
+        code: "INTERNAL_OUTPUT_SCHEMA_MISMATCH",
+        message: normalizeAjvErrors(tool.validateOutput.errors ?? []),
+        details: {
+          tool: tool.name,
+          validationErrors: {
+            errors: (tool.validateOutput.errors ?? []) as unknown
+          }
+        }
+      };
+
+      logJsonl({
+        event: "tool.call.end",
+        toolName: tool.name,
+        contractVersion: contract.contractVersion,
+        durationMs: Date.now() - startedAt,
+        isError: true,
+        addedResultFromSchemaRepair: normalized.addedResultFromSchemaRepair
+      });
+
+      // Even internal failures must conform to the frozen outputSchema (some tools require top-level `result`).
+      return buildErrorToolResult(tool, internalError);
+    }
+
+    logJsonl({
+      event: "tool.call.end",
+      toolName: tool.name,
+      contractVersion: contract.contractVersion,
+      durationMs: Date.now() - startedAt,
+      isError: false,
+      addedResultFromSchemaRepair: normalized.addedResultFromSchemaRepair
+    });
+
+    // Success
+    return {
+      isError: false,
+      content: makeTextContent("ok"),
+      structuredContent: normalized.payload
+    };
+  });
+
+  return { server };
+}
+
+export async function runMcpServer(): Promise<void> {
+  const { server } = await createMcpServer();
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  runMcpServer().catch((error) => {
+    console.error("MCP server failed to start:", error);
+    process.exit(1);
+  });
+}
