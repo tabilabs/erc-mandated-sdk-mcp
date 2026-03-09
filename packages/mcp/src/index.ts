@@ -10,6 +10,8 @@ const DEFAULT_SDK_ADAPTER = {
   createAgentAccountContext: sdk.createAgentAccountContext,
   createAgentFundingPolicy: sdk.createAgentFundingPolicy,
   buildFundAndActionPlan: sdk.buildFundAndActionPlan,
+  createFundAndActionExecutionSession: sdk.createFundAndActionExecutionSession,
+  applyFundAndActionExecutionEvent: sdk.applyFundAndActionExecutionEvent,
   createFollowUpActionResult: sdk.createFollowUpActionResult,
   checkAssetTransferAgainstFundingPolicy: sdk.checkAssetTransferAgainstFundingPolicy,
   buildAssetTransferPlanFromAccountContext: sdk.buildAssetTransferPlanFromAccountContext,

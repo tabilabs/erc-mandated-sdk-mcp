@@ -2004,3 +2004,180 @@ test("agent_follow_up_action_result_create rejects failed envelope without error
   assert.equal(structured.error?.code, "FAILED_RESULT_REQUIRES_ERROR");
   assert.ok((structured.error?.message ?? "").includes("requires error"));
 });
+
+test("agent_fund_and_action_session_create returns resumable session from plan", async (t) => {
+  const { client, server } = await createConnectedClient();
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const planResult = await client.callTool({
+    name: "agent_build_fund_and_action_plan",
+    arguments: {
+      accountContext: {
+        agentId: "predict-bot-session",
+        chainId: 97,
+        vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+        authority: "0x1111111111111111111111111111111111111111",
+        executor: "0x2222222222222222222222222222222222222222",
+        createdAt: "2026-03-09T00:00:00.000Z",
+        updatedAt: "2026-03-09T00:00:00.000Z"
+      },
+      fundingTarget: {
+        label: "predict-account",
+        recipient: "0x3333333333333333333333333333333333333333",
+        tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+        requiredAmountRaw: "1000000",
+        currentBalanceRaw: "100000",
+        balanceSnapshot: {
+          snapshotAt: "2026-03-09T00:10:00.000Z",
+          maxStalenessSeconds: 300
+        }
+      },
+      fundingContext: {
+        nonce: "2",
+        deadline: "9999999999",
+        authorityEpoch: "1",
+        allowedAdaptersRoot: "0x" + "11".repeat(32),
+        maxDrawdownBps: "1000",
+        maxCumulativeDrawdownBps: "2500",
+        policyEvaluation: {
+          now: "2026-03-09T00:12:00.000Z"
+        }
+      },
+      followUpAction: {
+        kind: "predict.createOrder",
+        target: "predict-order-engine",
+        payload: {
+          marketId: "btc-1h-up",
+          collateralTokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+          collateralAmountRaw: "500000"
+        }
+      }
+    }
+  });
+
+  const planStructured = planResult.structuredContent as {
+    result?: unknown;
+  };
+
+  const result = await client.callTool({
+    name: "agent_fund_and_action_session_create",
+    arguments: {
+      fundAndActionPlan: planStructured.result,
+      sessionId: "session-1",
+      createdAt: "2026-03-09T01:00:00.000Z"
+    }
+  });
+
+  const structured = result.structuredContent as {
+    result?: {
+      session?: {
+        sessionId?: string;
+        status?: string;
+        currentStep?: string;
+        fundingStep?: { status?: string };
+      };
+    };
+  };
+
+  assert.equal(result.isError, false);
+  assert.equal(structured.result?.session?.sessionId, "session-1");
+  assert.equal(structured.result?.session?.status, "pendingFunding");
+  assert.equal(structured.result?.session?.currentStep, "fundTargetAccount");
+  assert.equal(structured.result?.session?.fundingStep?.status, "pending");
+});
+
+test("agent_fund_and_action_session_apply_event rejects follow-up submission before funding confirmation", async (t) => {
+  const { client, server } = await createConnectedClient();
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const planResult = await client.callTool({
+    name: "agent_build_fund_and_action_plan",
+    arguments: {
+      accountContext: {
+        agentId: "predict-bot-session",
+        chainId: 97,
+        vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+        authority: "0x1111111111111111111111111111111111111111",
+        executor: "0x2222222222222222222222222222222222222222",
+        createdAt: "2026-03-09T00:00:00.000Z",
+        updatedAt: "2026-03-09T00:00:00.000Z"
+      },
+      fundingTarget: {
+        label: "predict-account",
+        recipient: "0x3333333333333333333333333333333333333333",
+        tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+        requiredAmountRaw: "1000000",
+        currentBalanceRaw: "100000",
+        balanceSnapshot: {
+          snapshotAt: "2026-03-09T00:10:00.000Z",
+          maxStalenessSeconds: 300
+        }
+      },
+      fundingContext: {
+        nonce: "2",
+        deadline: "9999999999",
+        authorityEpoch: "1",
+        allowedAdaptersRoot: "0x" + "11".repeat(32),
+        maxDrawdownBps: "1000",
+        maxCumulativeDrawdownBps: "2500",
+        policyEvaluation: {
+          now: "2026-03-09T00:12:00.000Z"
+        }
+      },
+      followUpAction: {
+        kind: "predict.createOrder",
+        target: "predict-order-engine",
+        payload: {
+          marketId: "btc-1h-up",
+          collateralTokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+          collateralAmountRaw: "500000"
+        }
+      }
+    }
+  });
+
+  const planStructured = planResult.structuredContent as {
+    result?: unknown;
+  };
+
+  const sessionResult = await client.callTool({
+    name: "agent_fund_and_action_session_create",
+    arguments: {
+      fundAndActionPlan: planStructured.result,
+      createdAt: "2026-03-09T01:00:00.000Z"
+    }
+  });
+
+  const sessionStructured = sessionResult.structuredContent as {
+    result?: {
+      session?: unknown;
+    };
+  };
+
+  const result = await client.callTool({
+    name: "agent_fund_and_action_session_apply_event",
+    arguments: {
+      session: sessionStructured.result?.session,
+      event: {
+        type: "followUpSubmitted",
+        updatedAt: "2026-03-09T01:01:00.000Z"
+      }
+    }
+  });
+
+  const structured = result.structuredContent as {
+    error?: { code?: string; message?: string };
+  };
+
+  assert.equal(result.isError, true);
+  assert.equal(structured.error?.code, "INVALID_EVENT_TRANSITION");
+  assert.ok((structured.error?.message ?? "").includes("follow-up"));
+});

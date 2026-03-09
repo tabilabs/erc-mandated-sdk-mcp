@@ -48,6 +48,25 @@ export {
 } from "./fundAndAction.js";
 
 export {
+  FundAndActionSessionError,
+  createFundAndActionExecutionSession,
+  applyFundAndActionExecutionEvent,
+  type FundAndActionSessionErrorCode,
+  type FundAndActionExecutionSessionStatus,
+  type FundAndActionExecutionCurrentStep,
+  type FundAndActionFundingStepStatus,
+  type FundAndActionFollowUpStepStatus,
+  type FundAndActionFundingStepExecution,
+  type FundAndActionFollowUpStepExecution,
+  type FundAndActionExecutionSession,
+  type CreateFundAndActionExecutionSessionInput,
+  type CreateFundAndActionExecutionSessionOutput,
+  type FundAndActionExecutionEvent,
+  type ApplyFundAndActionExecutionEventInput,
+  type ApplyFundAndActionExecutionEventOutput
+} from "./fundAndActionSession.js";
+
+export {
   FollowUpActionError,
   buildFollowUpActionPlan,
   createFollowUpActionResult,

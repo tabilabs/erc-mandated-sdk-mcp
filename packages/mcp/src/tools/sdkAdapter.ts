@@ -1,8 +1,10 @@
 import type {
+  applyFundAndActionExecutionEvent,
   buildFundAndActionPlan,
   buildAssetTransferPlanFromAccountContext,
   buildAssetTransferPlan,
   checkAssetTransferAgainstFundingPolicy,
+  createFundAndActionExecutionSession,
   createFollowUpActionResult,
   createAgentAccountContext,
   createAgentFundingPolicy,
@@ -22,6 +24,8 @@ export interface SdkAdapter {
   createAgentAccountContext: typeof createAgentAccountContext;
   createAgentFundingPolicy: typeof createAgentFundingPolicy;
   buildFundAndActionPlan: typeof buildFundAndActionPlan;
+  createFundAndActionExecutionSession: typeof createFundAndActionExecutionSession;
+  applyFundAndActionExecutionEvent: typeof applyFundAndActionExecutionEvent;
   createFollowUpActionResult: typeof createFollowUpActionResult;
   checkAssetTransferAgainstFundingPolicy: typeof checkAssetTransferAgainstFundingPolicy;
   buildAssetTransferPlanFromAccountContext: typeof buildAssetTransferPlanFromAccountContext;

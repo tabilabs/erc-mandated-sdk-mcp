@@ -182,6 +182,63 @@
       }
     },
     {
+      "name": "agent_fund_and_action_session_create",
+      "description": "Create a resumable execution session from a normalized fund-and-action plan.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["fundAndActionPlan"],
+        "properties": {
+          "fundAndActionPlan": { "$ref": "#/definitions/fundAndActionPlanResult" },
+          "sessionId": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "createdAt": { "type": "string", "minLength": 1 }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["session"],
+            "properties": {
+              "session": { "$ref": "#/definitions/fundAndActionExecutionSession" }
+            }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "agent_fund_and_action_session_apply_event",
+      "description": "Apply a state transition event to an existing fund-and-action execution session.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["session", "event"],
+        "properties": {
+          "session": { "$ref": "#/definitions/fundAndActionExecutionSession" },
+          "event": { "$ref": "#/definitions/fundAndActionExecutionEvent" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["session"],
+            "properties": {
+              "session": { "$ref": "#/definitions/fundAndActionExecutionSession" }
+            }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
       "name": "agent_follow_up_action_result_create",
       "description": "Normalize a follow-up action execution result envelope without invoking the real downstream executor.",
       "inputSchema": {
@@ -1110,6 +1167,136 @@
         "error": { "$ref": "#/definitions/followUpActionExecutionError" },
         "plan": { "$ref": "#/definitions/followUpActionPlan" }
       }
+    },
+    "fundAndActionExecutionSessionStatus": {
+      "type": "string",
+      "enum": ["pendingFunding", "pendingFollowUp", "succeeded", "failed", "skipped"]
+    },
+    "fundAndActionExecutionCurrentStep": {
+      "type": "string",
+      "enum": ["fundTargetAccount", "followUpAction", "none"]
+    },
+    "fundAndActionFundingStepStatus": {
+      "type": "string",
+      "enum": ["pending", "submitted", "succeeded", "failed", "skipped"]
+    },
+    "fundAndActionFollowUpStepStatus": {
+      "type": "string",
+      "enum": ["pending", "submitted", "succeeded", "failed", "skipped"]
+    },
+    "fundAndActionFundingStepExecution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "status", "summary", "updatedAt"],
+      "properties": {
+        "required": { "type": "boolean" },
+        "status": { "$ref": "#/definitions/fundAndActionFundingStepStatus" },
+        "summary": { "type": "string", "minLength": 1 },
+        "updatedAt": { "type": "string", "minLength": 1 },
+        "reference": { "$ref": "#/definitions/followUpActionExecutionReference" },
+        "error": { "$ref": "#/definitions/followUpActionExecutionError" }
+      }
+    },
+    "fundAndActionFollowUpStepExecution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "summary", "updatedAt"],
+      "properties": {
+        "status": { "$ref": "#/definitions/fundAndActionFollowUpStepStatus" },
+        "summary": { "type": "string", "minLength": 1 },
+        "updatedAt": { "type": "string", "minLength": 1 },
+        "reference": { "$ref": "#/definitions/followUpActionExecutionReference" },
+        "result": { "$ref": "#/definitions/followUpActionResult" }
+      }
+    },
+    "fundAndActionExecutionSession": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sessionId",
+        "status",
+        "currentStep",
+        "createdAt",
+        "updatedAt",
+        "fundAndActionPlan",
+        "fundingStep",
+        "followUpStep"
+      ],
+      "properties": {
+        "sessionId": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "status": { "$ref": "#/definitions/fundAndActionExecutionSessionStatus" },
+        "currentStep": { "$ref": "#/definitions/fundAndActionExecutionCurrentStep" },
+        "createdAt": { "type": "string", "minLength": 1 },
+        "updatedAt": { "type": "string", "minLength": 1 },
+        "fundAndActionPlan": { "$ref": "#/definitions/fundAndActionPlanResult" },
+        "fundingStep": { "$ref": "#/definitions/fundAndActionFundingStepExecution" },
+        "followUpStep": { "$ref": "#/definitions/fundAndActionFollowUpStepExecution" }
+      }
+    },
+    "fundAndActionExecutionEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "fundingSubmitted",
+            "fundingConfirmed",
+            "fundingFailed",
+            "followUpSubmitted",
+            "followUpResultReceived"
+          ]
+        },
+        "updatedAt": { "type": "string", "minLength": 1 },
+        "reference": { "$ref": "#/definitions/followUpActionExecutionReference" },
+        "error": { "$ref": "#/definitions/followUpActionExecutionError" },
+        "followUpActionResult": { "$ref": "#/definitions/followUpActionResult" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": { "const": "fundingSubmitted" }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "required": ["reference"],
+            "properties": {
+              "reference": { "$ref": "#/definitions/followUpActionExecutionReference" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": { "const": "fundingFailed" }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "required": ["error"],
+            "properties": {
+              "error": { "$ref": "#/definitions/followUpActionExecutionError" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": { "const": "followUpResultReceived" }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "required": ["followUpActionResult"],
+            "properties": {
+              "followUpActionResult": { "$ref": "#/definitions/followUpActionResult" }
+            }
+          }
+        }
+      ]
     },
     "fundAndActionFundingContext": {
       "type": "object",
