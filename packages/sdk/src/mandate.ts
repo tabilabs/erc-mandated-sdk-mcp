@@ -8,6 +8,7 @@ import {
 } from "viem";
 
 import { resolveChainId, toBigint } from "./shared.js";
+import { ErcMandatedSdkError } from "./errors.js";
 
 const ZERO_BYTES32 = ("0x" + "0".repeat(64)) as Hash;
 
@@ -100,7 +101,16 @@ function computeActionsDigest(actions: Array<{ adapter: Address; value: bigint; 
 function toUintStringNumber(value: string, field: string): number {
   const asBigint = toBigint(value, field);
   if (asBigint > BigInt(Number.MAX_SAFE_INTEGER)) {
-    throw new Error(`Invalid ${field}: out of safe integer range for uint16/uint48 in typed data.`);
+    throw new ErcMandatedSdkError(
+      `Invalid ${field}: out of safe integer range for uint16/uint48 in typed data.`,
+      {
+        code: "INVALID_TYPED_DATA_UINT_RANGE",
+        details: {
+          field,
+          value
+        }
+      }
+    );
   }
   return Number(asBigint);
 }

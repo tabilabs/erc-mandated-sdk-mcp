@@ -2,16 +2,22 @@ import { encodeFunctionData, isAddress, type Address, type Hex } from "viem";
 
 import { mandatedVaultAbi } from "./abi/mandatedVault.js";
 import { resolveChainId, createPublicViemClient, toBigint } from "./shared.js";
+import { ErcMandatedSdkError } from "./errors.js";
 
 export type VaultCheckNonceErrorCode = "INVALID_VAULT_ADDRESS" | "INVALID_AUTHORITY_ADDRESS";
 
-export class VaultCheckNonceError extends Error {
+export class VaultCheckNonceError extends ErcMandatedSdkError {
   readonly code: VaultCheckNonceErrorCode;
   readonly field: "vault" | "authority";
 
   constructor(message: string, params: { code: VaultCheckNonceErrorCode; field: "vault" | "authority" }) {
-    super(message);
-    this.name = "VaultCheckNonceError";
+    super(message, {
+      code: params.code,
+      name: "VaultCheckNonceError",
+      details: {
+        field: params.field
+      }
+    });
     this.code = params.code;
     this.field = params.field;
   }
@@ -19,7 +25,7 @@ export class VaultCheckNonceError extends Error {
 
 export type MandateCheckRevokedErrorCode = "INVALID_VAULT_ADDRESS" | "INVALID_MANDATE_HASH";
 
-export class MandateCheckRevokedError extends Error {
+export class MandateCheckRevokedError extends ErcMandatedSdkError {
   readonly code: MandateCheckRevokedErrorCode;
   readonly field: "vault" | "mandateHash";
 
@@ -27,8 +33,13 @@ export class MandateCheckRevokedError extends Error {
     message: string,
     params: { code: MandateCheckRevokedErrorCode; field: "vault" | "mandateHash" }
   ) {
-    super(message);
-    this.name = "MandateCheckRevokedError";
+    super(message, {
+      code: params.code,
+      name: "MandateCheckRevokedError",
+      details: {
+        field: params.field
+      }
+    });
     this.code = params.code;
     this.field = params.field;
   }

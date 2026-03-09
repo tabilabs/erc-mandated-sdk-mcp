@@ -32,23 +32,44 @@ export interface LoadedTools {
   tools: LoadedTool[];
 }
 
-const DEFAULT_CONTRACT_VERSION = "v0.1.1-agent-contract";
 const CONTRACT_VERSION_ENV_KEY = "ERC_MANDATED_CONTRACT_VERSION";
+const LATEST_CONTRACT_POINTER_URL = new URL("../../contracts/latest.json", import.meta.url);
 
-function getSelectedContractVersion(): string {
+interface LatestContractPointer {
+  contractVersion: string;
+}
+
+function assertLatestContractPointer(value: unknown): asserts value is LatestContractPointer {
+  if (!value || typeof value !== "object") {
+    throw new Error("Invalid latest contract file: root must be an object");
+  }
+
+  const candidate = value as Partial<LatestContractPointer>;
+  if (typeof candidate.contractVersion !== "string" || candidate.contractVersion.length === 0) {
+    throw new Error("Invalid latest contract file: contractVersion must be non-empty string");
+  }
+}
+
+async function getSelectedContractVersion(): Promise<string> {
   const v = process.env[CONTRACT_VERSION_ENV_KEY];
   if (typeof v === "string" && v.length > 0) {
     return v;
   }
-  return DEFAULT_CONTRACT_VERSION;
+
+  const latestContent = await readFile(LATEST_CONTRACT_POINTER_URL, "utf8");
+  const latestParsed: unknown = JSON.parse(latestContent);
+  assertLatestContractPointer(latestParsed);
+
+  return latestParsed.contractVersion;
 }
 
 function contractToolsUrlForVersion(contractVersion: string): URL {
   return new URL(`../../contracts/${contractVersion}/mcp-tools.json`, import.meta.url);
 }
 
-function getDefaultContractPath(): URL {
-  return contractToolsUrlForVersion(getSelectedContractVersion());
+async function getDefaultContractPath(): Promise<URL> {
+  const contractVersion = await getSelectedContractVersion();
+  return contractToolsUrlForVersion(contractVersion);
 }
 
 function assertContractToolFile(value: unknown): asserts value is ContractToolFile {
@@ -107,17 +128,22 @@ function withDefinitions(
   };
 }
 
-export async function loadTools(contractPath: URL | string = getDefaultContractPath()): Promise<LoadedTools> {
-  const sourcePath = typeof contractPath === "string" ? contractPath : contractPath.pathname;
+export async function loadTools(contractPath?: URL | string): Promise<LoadedTools> {
+  const resolvedPath = contractPath ?? (await getDefaultContractPath());
+  const sourcePath = typeof resolvedPath === "string" ? resolvedPath : resolvedPath.pathname;
 
   let content: string;
   try {
-    content = await readFile(contractPath, "utf8");
+    content = await readFile(resolvedPath, "utf8");
   } catch (e) {
-    const selected = getSelectedContractVersion();
+    if (contractPath !== undefined) {
+      throw new Error(`Contract tools file not found at explicit path: ${sourcePath}`);
+    }
+
+    const selected = await getSelectedContractVersion();
     throw new Error(
       `Contract tools file not found for contractVersion='${selected}'. ` +
-        `Set ${CONTRACT_VERSION_ENV_KEY} to a valid version like 'v0.1.0-agent-contract'. ` +
+        `Set ${CONTRACT_VERSION_ENV_KEY} to a valid version like 'v0.1.1-agent-contract'. ` +
         `Tried path: ${sourcePath}`
     );
   }

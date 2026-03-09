@@ -1,5 +1,3 @@
-import type { Address, Hex } from "viem";
-
 import type { ToolError } from "../index.js";
 import { toToolError, mapUnknownErrorToToolError } from "../errors.js";
 import type { SdkAdapter } from "./sdkAdapter.js";
@@ -11,74 +9,59 @@ type JsonResult = {
   error?: ToolError;
 };
 
+type ToolInput<T extends keyof SdkAdapter> = Parameters<SdkAdapter[T]>[0];
+
 export async function handleToolCall(toolName: string, args: JsonObject, sdk: SdkAdapter): Promise<JsonResult> {
   try {
     switch (toolName) {
       case "vault_health_check": {
-        const input = args as unknown as {
-          chainId?: number;
-          vault: Address;
-          blockTag?: string;
-        };
+        const input = args as unknown as ToolInput<"healthCheckVault">;
         return (await sdk.healthCheckVault(input)) as unknown as JsonResult;
       }
 
       case "factory_predict_vault_address": {
-        const input = args as unknown as {
-          chainId?: number;
-          factory?: Address;
-          asset: Address;
-          name: string;
-          symbol: string;
-          authority: Address;
-          salt: Hex;
-        };
+        const input = args as unknown as ToolInput<"predictVaultAddress">;
         return (await sdk.predictVaultAddress(input)) as unknown as JsonResult;
       }
 
       case "factory_create_vault_prepare": {
-        const input = args as unknown as {
-          chainId?: number;
-          factory?: Address;
-          from: Address;
-          asset: Address;
-          name: string;
-          symbol: string;
-          authority: Address;
-          salt: Hex;
-        };
+        const input = args as unknown as ToolInput<"prepareCreateVaultTx">;
         return (await sdk.prepareCreateVaultTx(input)) as unknown as JsonResult;
       }
 
       case "mandate_build_sign_request": {
-        // Complex nested input type - Ajv already validated against schema
-        return (await sdk.buildMandateSignRequest(args as any)) as unknown as JsonResult;
+        const input = args as unknown as ToolInput<"buildMandateSignRequest">;
+        return (await sdk.buildMandateSignRequest(input)) as unknown as JsonResult;
       }
 
       case "vault_simulate_execute": {
-        // Complex nested input type - Ajv already validated against schema
-        return (await sdk.simulateExecuteVault(args as any)) as unknown as JsonResult;
+        const input = args as unknown as ToolInput<"simulateExecuteVault">;
+        return (await sdk.simulateExecuteVault(input)) as unknown as JsonResult;
       }
 
       case "vault_execute_prepare": {
-        // Complex nested input type - Ajv already validated against schema
-        return (await sdk.prepareExecuteTx(args as any)) as unknown as JsonResult;
+        const input = args as unknown as ToolInput<"prepareExecuteTx">;
+        return (await sdk.prepareExecuteTx(input)) as unknown as JsonResult;
       }
 
       case "vault_check_nonce": {
-        return (await sdk.checkNonceUsed(args as any)) as unknown as JsonResult;
+        const input = args as unknown as ToolInput<"checkNonceUsed">;
+        return (await sdk.checkNonceUsed(input)) as unknown as JsonResult;
       }
 
       case "mandate_check_revoked": {
-        return (await sdk.checkMandateRevoked(args as any)) as unknown as JsonResult;
+        const input = args as unknown as ToolInput<"checkMandateRevoked">;
+        return (await sdk.checkMandateRevoked(input)) as unknown as JsonResult;
       }
 
       case "vault_invalidate_nonce_prepare": {
-        return (await sdk.prepareInvalidateNonceTx(args as any)) as unknown as JsonResult;
+        const input = args as unknown as ToolInput<"prepareInvalidateNonceTx">;
+        return (await sdk.prepareInvalidateNonceTx(input)) as unknown as JsonResult;
       }
 
       case "vault_revoke_mandate_prepare": {
-        return (await sdk.prepareRevokeMandateTx(args as any)) as unknown as JsonResult;
+        const input = args as unknown as ToolInput<"prepareRevokeMandateTx">;
+        return (await sdk.prepareRevokeMandateTx(input)) as unknown as JsonResult;
       }
 
       default:

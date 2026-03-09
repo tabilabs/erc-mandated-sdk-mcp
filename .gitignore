@@ -20,3 +20,9 @@ yarn-error.log*
 # Env
 .env
 .env.*
+
+# Generated docs / context (not for release)
+.context/
+docs/
+context-map/
+*.tgz

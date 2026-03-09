@@ -10,6 +10,20 @@ export function getSdkInfo(): SdkInfo {
   };
 }
 
+export { ErcMandatedSdkError } from "./errors.js";
+
+export {
+  NetworkConfigError,
+  type NetworkConfigErrorCode,
+  getSupportedChains,
+  getChainConfig,
+  getRpcUrl,
+  registerSupportedChain,
+  registerSupportedChains,
+  resetSupportedChains,
+  type SupportedChain
+} from "./networks.js";
+
 export {
   FactoryConfigError,
   type FactoryConfigErrorCode,

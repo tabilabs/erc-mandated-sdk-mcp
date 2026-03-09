@@ -13,11 +13,9 @@
     "build": "npm -ws run build",
     "test": "npm -ws run test",
     "contract-check": "node scripts/contract-check.mjs",
-
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "changeset publish",
-
     "pack-verify": "node scripts/pack-verify.mjs"
   },
   "devDependencies": {

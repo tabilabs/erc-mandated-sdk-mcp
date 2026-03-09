@@ -89,7 +89,10 @@
         "properties": {
           "chainId": { "type": "integer", "minimum": 1 },
           "vault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
-          "blockTag": { "type": "string", "description": "\"latest\" or a decimal block number string" }
+          "blockTag": {
+            "type": "string",
+            "description": "\"latest\", a decimal block number string, or a 0x-prefixed hex block number string"
+          }
         }
       },
       "outputSchema": {

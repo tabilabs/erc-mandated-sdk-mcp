@@ -8,13 +8,15 @@ import {
 
 import { vaultFactoryAbi } from "./abi/vaultFactory.js";
 import { resolveChainId, createPublicViemClient } from "./shared.js";
+import { getChainConfig } from "./networks.js";
+import { ErcMandatedSdkError } from "./errors.js";
 
 export type FactoryConfigErrorCode =
   | "FACTORY_ADDRESS_NOT_CONFIGURED"
   | "INVALID_FACTORY_ADDRESS"
   | "INVALID_SALT";
 
-export class FactoryConfigError extends Error {
+export class FactoryConfigError extends ErcMandatedSdkError {
   readonly code: FactoryConfigErrorCode;
   readonly chainId: number;
   readonly field: "factory" | "salt";
@@ -33,8 +35,17 @@ export class FactoryConfigError extends Error {
       value?: string;
     }
   ) {
-    super(message);
-    this.name = "FactoryConfigError";
+    super(message, {
+      code: params.code,
+      name: "FactoryConfigError",
+      details: {
+        chainId: params.chainId,
+        field: params.field,
+        envKey: params.envKey,
+        envKeys: params.envKeys,
+        value: params.value
+      }
+    });
     this.code = params.code;
     this.chainId = params.chainId;
     this.field = params.field;
@@ -93,11 +104,8 @@ export interface VaultFactoryReadClient {
 const BYTES32_PATTERN = /^0x[a-fA-F0-9]{64}$/;
 
 function getFactoryEnvCandidates(chainId: number): string[] {
-  return chainId === 97
-    ? ["BSC_TESTNET_FACTORY_ADDRESS", "BSC_TESTNET_FACTORY", "FACTORY_ADDRESS"]
-    : chainId === 11155111
-      ? ["SEPOLIA_FACTORY_ADDRESS", "SEPOLIA_FACTORY", "FACTORY_ADDRESS"]
-      : ["FACTORY_ADDRESS"];
+  const chain = getChainConfig(chainId);
+  return chain.factoryEnvCandidates ?? ["FACTORY_ADDRESS"];
 }
 
 function validateSaltBytes32(salt: string, chainId: number): asserts salt is Hash {

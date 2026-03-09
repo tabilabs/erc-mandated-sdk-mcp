@@ -2,6 +2,12 @@ import type { LoadedTool } from "./contract/loadTools.js";
 
 type JsonObject = Record<string, unknown>;
 
+export type SchemaRepairMode = "repair" | "strict";
+
+export function getSchemaRepairModeFromEnv(): SchemaRepairMode {
+  return process.env.MCP_SCHEMA_REPAIR_MODE === "strict" ? "strict" : "repair";
+}
+
 function isObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -132,11 +138,19 @@ function generateValueFromSchema(schema: JsonObject, rootSchema: JsonObject): un
   return null;
 }
 
-export function ensurePayloadMatchesOutputSchema(tool: LoadedTool, payload: JsonObject): {
+export function ensurePayloadMatchesOutputSchema(
+  tool: LoadedTool,
+  payload: JsonObject,
+  mode: SchemaRepairMode = "repair"
+): {
   payload: JsonObject;
   addedResultFromSchemaRepair: boolean;
 } {
   if (tool.validateOutput(payload)) {
+    return { payload, addedResultFromSchemaRepair: false };
+  }
+
+  if (mode === "strict") {
     return { payload, addedResultFromSchemaRepair: false };
   }
 

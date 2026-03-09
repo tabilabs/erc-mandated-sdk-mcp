@@ -105,6 +105,29 @@ test("healthCheckVault maps fields and converts uint values to decimal strings",
   assert.deepEqual(nonceCall?.args, [state.mandateAuthority]);
 });
 
+test("healthCheckVault supports hex blockTag and skips getBlockNumber", async () => {
+  const vault = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" as Address;
+  const { client, calls, getBlockNumberCalls } = buildMockVaultClient({
+    blockNumber: 999n
+  });
+
+  const output = await healthCheckVault(
+    {
+      chainId: 11155111,
+      vault,
+      blockTag: "0x315"
+    },
+    { client }
+  );
+
+  assert.equal(getBlockNumberCalls(), 0);
+  assert.equal(output.result.blockNumber, 789);
+  assert.equal(calls.length, 5);
+  for (const call of calls) {
+    assert.equal(call.blockNumber, 789n);
+  }
+});
+
 test("healthCheckVault uses decimal blockTag and skips getBlockNumber", async () => {
   const vault = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" as Address;
   const { client, calls, getBlockNumberCalls } = buildMockVaultClient({

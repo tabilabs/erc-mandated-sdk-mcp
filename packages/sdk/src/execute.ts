@@ -8,6 +8,7 @@ import {
 import { mandatedVaultAbi } from "./abi/mandatedVault.js";
 import { NetworkConfigError } from "./networks.js";
 import { resolveChainId, createPublicViemClient, toSafeBlockNumber, toBigint } from "./shared.js";
+import { ErcMandatedSdkError } from "./errors.js";
 
 export interface ExecuteAction {
   adapter: Address;
@@ -45,7 +46,12 @@ export interface VaultSimulateExecuteOutput {
     blockNumber: number;
     preAssets?: string;
     postAssets?: string;
-    revertDecoded?: object;
+    revertDecoded?: {
+      message: string;
+      name?: string;
+      shortMessage?: string;
+      rawData?: string;
+    };
   };
 }
 
@@ -82,22 +88,50 @@ function createDefaultSimulateClient(chainId: number): ExecuteSimulateClient {
   };
 }
 
+const MAX_UINT48 = (1n << 48n) - 1n;
+const MAX_UINT16 = 65535n;
+const MAX_BPS = 10000n;
+
 function toSafeNumberForUint48(value: bigint, field: string): number {
-  if (value < 0n || value > (1n << 48n) - 1n) {
-    throw new Error(`Invalid ${field}: expected uint48`);
+  if (value < 0n || value > MAX_UINT48) {
+    throw new ErcMandatedSdkError(`Invalid ${field}: expected uint48`, {
+      code: "INVALID_UINT48",
+      details: {
+        field,
+        value: value.toString(10)
+      }
+    });
   }
   if (value > BigInt(Number.MAX_SAFE_INTEGER)) {
-    throw new Error(`Invalid ${field}: exceeds JS safe integer range`);
+    throw new ErcMandatedSdkError(`Invalid ${field}: exceeds JS safe integer range`, {
+      code: "INVALID_SAFE_INTEGER_RANGE",
+      details: {
+        field,
+        value: value.toString(10)
+      }
+    });
   }
   return Number(value);
 }
 
 function toSafeBpsUint16(value: bigint, field: string): number {
-  if (value < 0n || value > 65535n) {
-    throw new Error(`Invalid ${field}: expected uint16`);
+  if (value < 0n || value > MAX_UINT16) {
+    throw new ErcMandatedSdkError(`Invalid ${field}: expected uint16`, {
+      code: "INVALID_UINT16",
+      details: {
+        field,
+        value: value.toString(10)
+      }
+    });
   }
-  if (value > 10000n) {
-    throw new Error(`Invalid ${field}: bps must be <= 10000`);
+  if (value > MAX_BPS) {
+    throw new ErcMandatedSdkError(`Invalid ${field}: bps must be <= 10000`, {
+      code: "INVALID_BPS",
+      details: {
+        field,
+        value: value.toString(10)
+      }
+    });
   }
   return Number(value);
 }
@@ -210,13 +244,24 @@ export async function simulateExecuteVault(
       throw error;
     }
 
-    // viem throws rich errors; we keep minimal structure for MCP mapping.
+    const errorObject = error as
+      | (Error & {
+          shortMessage?: string;
+          data?: string;
+        })
+      | undefined;
+
     return {
       result: {
         ok: false,
         blockNumber: toSafeBlockNumber(blockNumber, "execute simulation"),
         revertDecoded: {
-          message: error instanceof Error ? error.message : String(error)
+          message: errorObject instanceof Error ? errorObject.message : String(error),
+          ...(errorObject?.name ? { name: errorObject.name } : {}),
+          ...(typeof errorObject?.shortMessage === "string"
+            ? { shortMessage: errorObject.shortMessage }
+            : {}),
+          ...(typeof errorObject?.data === "string" ? { rawData: errorObject.data } : {})
         }
       }
     };

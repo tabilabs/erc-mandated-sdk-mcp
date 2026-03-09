@@ -2,6 +2,7 @@ import { isAddress, type Address } from "viem";
 
 import { mandatedVaultAbi } from "./abi/mandatedVault.js";
 import { resolveChainId, createPublicViemClient, toSafeBlockNumber, toUintString } from "./shared.js";
+import { ErcMandatedSdkError } from "./errors.js";
 
 export type VaultHealthCheckErrorCode =
   | "INVALID_VAULT_ADDRESS"
@@ -19,7 +20,7 @@ type VaultHealthCheckErrorField =
   | "nonceThreshold"
   | "totalAssets";
 
-export class VaultHealthCheckError extends Error {
+export class VaultHealthCheckError extends ErcMandatedSdkError {
   readonly code: VaultHealthCheckErrorCode;
   readonly field: VaultHealthCheckErrorField;
   readonly value?: string;
@@ -32,8 +33,14 @@ export class VaultHealthCheckError extends Error {
       value?: string;
     }
   ) {
-    super(message);
-    this.name = "VaultHealthCheckError";
+    super(message, {
+      code: params.code,
+      name: "VaultHealthCheckError",
+      details: {
+        field: params.field,
+        value: params.value
+      }
+    });
     this.code = params.code;
     this.field = params.field;
     this.value = params.value;
@@ -93,9 +100,12 @@ function parseBlockTag(blockTag: string | undefined): { blockNumber?: bigint; us
     return { useLatest: true };
   }
 
-  if (!/^\d+$/.test(blockTag)) {
+  const isDecimal = /^\d+$/.test(blockTag);
+  const isHex = /^0x[0-9a-fA-F]+$/.test(blockTag);
+
+  if (!isDecimal && !isHex) {
     throw new VaultHealthCheckError(
-      'Invalid blockTag: expected "latest" or a decimal block number string.',
+      'Invalid blockTag: expected "latest", a decimal block number string, or a 0x-prefixed hex block number.',
       {
         code: "INVALID_BLOCK_TAG",
         field: "blockTag",

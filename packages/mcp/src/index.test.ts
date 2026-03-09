@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { createConnectedClient } from "./test-helpers.js";
 import { loadTools } from "./contract/loadTools.js";
 
-test("tools/list 返回的工具名必须与冻结契约完全一致", async (t) => {
+test("tools/list must exactly match frozen contract tool names", async (t) => {
   const { client, server } = await createConnectedClient();
 
   t.after(async () => {
@@ -24,7 +24,7 @@ test("tools/list 返回的工具名必须与冻结契约完全一致", async (t)
   assert.deepEqual(actualNames, expectedNames);
 });
 
-test("非法地址 input 必须返回 toolError(code/message)", async (t) => {
+test("invalid address input must return toolError(code/message)", async (t) => {
   const { client, server } = await createConnectedClient();
 
   t.after(async () => {
@@ -56,7 +56,7 @@ test("非法地址 input 必须返回 toolError(code/message)", async (t) => {
   assert.equal(structured.error?.details?.addedResultFromSchemaRepair, true);
 });
 
-test("缺失 required 字段必须返回 toolError(code/message)", async (t) => {
+test("missing required fields must return toolError(code/message)", async (t) => {
   const { client, server } = await createConnectedClient();
 
   t.after(async () => {
@@ -87,7 +87,7 @@ test("缺失 required 字段必须返回 toolError(code/message)", async (t) => 
   assert.equal(structured.error?.details?.addedResultFromSchemaRepair, true);
 });
 
-test("合法 input 但未配置 factory 地址必须返回结构化错误", async (t) => {
+test("valid input without factory address config must return structured error", async (t) => {
   const { client, server } = await createConnectedClient();
 
   t.after(async () => {
@@ -95,7 +95,7 @@ test("合法 input 但未配置 factory 地址必须返回结构化错误", asyn
     await server.close();
   });
 
-  // 确保测试不依赖本机/CI 环境变量状态。
+  // Ensure this test does not depend on local/CI environment variable state.
   const savedEnv = {
     BSC_TESTNET_FACTORY_ADDRESS: process.env.BSC_TESTNET_FACTORY_ADDRESS,
     BSC_TESTNET_FACTORY: process.env.BSC_TESTNET_FACTORY,
@@ -136,13 +136,101 @@ test("合法 input 但未配置 factory 地址必须返回结构化错误", asyn
   assert.equal(structured.error?.details?.addedResultFromSchemaRepair, true);
 });
 
-test("成功路径 outputSchema 不匹配时必须返回 INTERNAL_OUTPUT_SCHEMA_MISMATCH", async (t) => {
-  // 注入一个返回错误形状的 adapter，确保不是 handler 自己报错，而是成功路径兜底校验生效。
+test("strict mode turns handler error payload mismatch into INTERNAL_OUTPUT_SCHEMA_MISMATCH", async (t) => {
+  const savedMode = process.env.MCP_SCHEMA_REPAIR_MODE;
+  process.env.MCP_SCHEMA_REPAIR_MODE = "strict";
+
+  const savedEnv = {
+    BSC_TESTNET_FACTORY_ADDRESS: process.env.BSC_TESTNET_FACTORY_ADDRESS,
+    BSC_TESTNET_FACTORY: process.env.BSC_TESTNET_FACTORY,
+    FACTORY_ADDRESS: process.env.FACTORY_ADDRESS
+  };
+
+  delete process.env.BSC_TESTNET_FACTORY_ADDRESS;
+  delete process.env.BSC_TESTNET_FACTORY;
+  delete process.env.FACTORY_ADDRESS;
+
+  t.after(() => {
+    if (savedMode === undefined) {
+      delete process.env.MCP_SCHEMA_REPAIR_MODE;
+    } else {
+      process.env.MCP_SCHEMA_REPAIR_MODE = savedMode;
+    }
+
+    process.env.BSC_TESTNET_FACTORY_ADDRESS = savedEnv.BSC_TESTNET_FACTORY_ADDRESS;
+    process.env.BSC_TESTNET_FACTORY = savedEnv.BSC_TESTNET_FACTORY;
+    process.env.FACTORY_ADDRESS = savedEnv.FACTORY_ADDRESS;
+  });
+
+  const { client, server } = await createConnectedClient();
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "factory_predict_vault_address",
+    arguments: {
+      asset: "0x2222222222222222222222222222222222222222",
+      name: "Vault",
+      symbol: "VLT",
+      authority: "0x1111111111111111111111111111111111111111",
+      salt: "0x" + "1".repeat(64)
+    }
+  });
+
+  const structured = result.structuredContent as {
+    result?: unknown;
+    error?: {
+      code?: string;
+      message?: string;
+      details?: {
+        addedResultFromSchemaRepair?: boolean;
+        originalError?: {
+          code?: string;
+          message?: string;
+          details?: {
+            field?: string;
+            chainId?: number;
+            envKeys?: string[];
+          };
+        };
+      };
+    };
+  };
+
+  assert.equal(result.isError, true);
+  assert.equal(structured.error?.code, "INTERNAL_OUTPUT_SCHEMA_MISMATCH");
+  assert.notEqual(typeof structured.result, "undefined");
+  assert.equal(structured.error?.details?.addedResultFromSchemaRepair, undefined);
+  assert.equal(structured.error?.details?.originalError?.code, "FACTORY_ADDRESS_NOT_CONFIGURED");
+  assert.equal(typeof structured.error?.details?.originalError?.message, "string");
+  assert.ok((structured.error?.details?.originalError?.message ?? "").length > 0);
+
+  const originalDetails =
+    structured.error?.details?.originalError?.details as
+      | {
+          field?: string;
+          chainId?: number;
+          envKeys?: string[];
+        }
+      | undefined;
+
+  assert.equal(originalDetails?.field, "factory");
+  assert.equal(originalDetails?.chainId, 97);
+  assert.ok(Array.isArray(originalDetails?.envKeys));
+  assert.ok((originalDetails?.envKeys ?? []).includes("BSC_TESTNET_FACTORY_ADDRESS"));
+});
+
+test("success path must return INTERNAL_OUTPUT_SCHEMA_MISMATCH when outputSchema mismatches", async (t) => {
+  // Inject an adapter that returns an invalid success shape,
+  // so we verify the success-path outputSchema guard (not a handler-thrown error).
   const badAdapter = {
     healthCheckVault: async () => {
       return {
         result: {
-          // outputSchema 里 blockNumber 是 integer，但这里故意给 string
+          // outputSchema expects blockNumber as integer, but we intentionally return string
           blockNumber: "oops",
           vault: "0x1111111111111111111111111111111111111111",
           mandateAuthority: "0x5555555555555555555555555555555555555555",
@@ -181,11 +269,22 @@ test("成功路径 outputSchema 不匹配时必须返回 INTERNAL_OUTPUT_SCHEMA_
   assert.ok((structured.error?.message ?? "").length > 0);
 });
 
-test("成功路径 outputSchema 不匹配且 result required 时仍需补齐 result", async (t) => {
+test("strict mode keeps contract envelope valid for required result output mismatch", async (t) => {
+  const savedMode = process.env.MCP_SCHEMA_REPAIR_MODE;
+  process.env.MCP_SCHEMA_REPAIR_MODE = "strict";
+
+  t.after(() => {
+    if (savedMode === undefined) {
+      delete process.env.MCP_SCHEMA_REPAIR_MODE;
+    } else {
+      process.env.MCP_SCHEMA_REPAIR_MODE = savedMode;
+    }
+  });
+
   const badAdapter = {
     predictVaultAddress: async () => {
       return {
-        // outputSchema 要求 predictedVault 是 address，这里故意给不匹配的字符串
+        // outputSchema expects predictedVault as address; intentionally return mismatched string
         result: {
           predictedVault: "oops"
         }
@@ -222,13 +321,62 @@ test("成功路径 outputSchema 不匹配且 result required 时仍需补齐 res
   assert.equal(typeof structured.error?.message, "string");
   assert.ok((structured.error?.message ?? "").length > 0);
 
-  // factory_predict_vault_address 的 outputSchema 顶层 required=["result"]。
-  // 即使是 INTERNAL_OUTPUT_SCHEMA_MISMATCH，也必须返回可通过 outputSchema 的 payload。
+  // strict 模式下，业务 payload 不 repair，但错误 envelope 仍必须满足 frozen outputSchema。
   assert.notEqual(typeof structured.result, "undefined");
-  assert.equal(structured.error?.details?.addedResultFromSchemaRepair, true);
+  assert.equal(structured.error?.details?.addedResultFromSchemaRepair, undefined);
 });
 
-test("loadTools 遇到重复 tool.name 时必须抛错", async () => {
+test("repair mode still backfills required result for output mismatch", async (t) => {
+  const savedMode = process.env.MCP_SCHEMA_REPAIR_MODE;
+  process.env.MCP_SCHEMA_REPAIR_MODE = "repair";
+
+  t.after(() => {
+    if (savedMode === undefined) {
+      delete process.env.MCP_SCHEMA_REPAIR_MODE;
+    } else {
+      process.env.MCP_SCHEMA_REPAIR_MODE = savedMode;
+    }
+  });
+
+  const badAdapter = {
+    predictVaultAddress: async () => ({
+      result: {
+        predictedVault: "oops"
+      }
+    })
+  } as any;
+
+  const { client, server } = await createConnectedClient(badAdapter as any);
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "factory_predict_vault_address",
+    arguments: {
+      chainId: 11155111,
+      asset: "0x2222222222222222222222222222222222222222",
+      name: "Vault",
+      symbol: "VLT",
+      authority: "0x1111111111111111111111111111111111111111",
+      salt: "0x" + "1".repeat(64)
+    }
+  });
+
+  const structured = result.structuredContent as {
+    result?: unknown;
+    error?: { code?: string; message?: string; details?: { addedResultFromSchemaRepair?: boolean } };
+  };
+
+  assert.equal(result.isError, true);
+  assert.equal(structured.error?.code, "INTERNAL_OUTPUT_SCHEMA_MISMATCH");
+  assert.notEqual(typeof structured.result, "undefined");
+  assert.equal(structured.error?.details?.addedResultFromSchemaRepair, undefined);
+});
+
+test("loadTools must throw on duplicate tool.name", async () => {
   const tempDir = await mkdtemp(join(tmpdir(), "mcp-contract-duplicate-"));
 
   try {
@@ -286,4 +434,110 @@ test("loadTools 遇到重复 tool.name 时必须抛错", async () => {
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+});
+
+test("mapUnknownErrorToToolError handles circular details without crashing", async (t) => {
+  const circular: { self?: unknown; marker: string } = { marker: "circular" };
+  circular.self = circular;
+
+  const circularAdapter = {
+    predictVaultAddress: async () => {
+      throw Object.assign(new Error("boom"), {
+        code: "SDK_ERROR",
+        details: circular
+      });
+    }
+  } as any;
+
+  const { client, server } = await createConnectedClient(circularAdapter);
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "factory_predict_vault_address",
+    arguments: {
+      chainId: 11155111,
+      asset: "0x2222222222222222222222222222222222222222",
+      name: "Vault",
+      symbol: "VLT",
+      authority: "0x1111111111111111111111111111111111111111",
+      salt: "0x" + "1".repeat(64)
+    }
+  });
+
+  const structured = result.structuredContent as {
+    error?: { code?: string; details?: { marker?: string; self?: unknown } };
+  };
+
+  assert.equal(result.isError, true);
+  assert.equal(structured.error?.code, "SDK_ERROR");
+  assert.equal(structured.error?.details?.marker, "circular");
+  assert.equal(structured.error?.details?.self, "[Circular]");
+});
+
+test("mandate_build_sign_request result must be JSON-serializable (BigInt-safe)", async (t) => {
+  const bigintAdapter = {
+    buildMandateSignRequest: async () => ({
+      result: {
+        typedData: {
+          domain: {
+            chainId: 97n,
+            verifyingContract: "0x92040EBDA2143C3BBD12962479afA87dB6e56059"
+          }
+        },
+        mandate: {
+          vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+          executor: "0x1111111111111111111111111111111111111111",
+          nonce: "1",
+          deadline: "9999999999",
+          authorityEpoch: "1",
+          allowedAdaptersRoot: "0x" + "00".repeat(32),
+          maxDrawdownBps: "10000",
+          maxCumulativeDrawdownBps: "10000",
+          payloadDigest: "0x" + "11".repeat(32),
+          extensionsHash: "0x" + "22".repeat(32)
+        },
+        mandateHash: "0x" + "33".repeat(32),
+        actionsDigest: "0x" + "44".repeat(32),
+        extensionsHash: "0x" + "55".repeat(32)
+      }
+    })
+  } as any;
+
+  const { client, server } = await createConnectedClient(bigintAdapter);
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "mandate_build_sign_request",
+    arguments: {
+      chainId: 97,
+      vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+      executor: "0x1111111111111111111111111111111111111111",
+      nonce: "1",
+      deadline: "9999999999",
+      authorityEpoch: "1",
+      allowedAdaptersRoot: "0x" + "00".repeat(32),
+      maxDrawdownBps: "10000",
+      maxCumulativeDrawdownBps: "10000",
+      payloadBinding: "actionsDigest",
+      actions: [
+        {
+          adapter: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+          value: "0",
+          data: "0x"
+        }
+      ],
+      extensions: "0x"
+    }
+  });
+
+  assert.equal(result.isError, false);
+  assert.doesNotThrow(() => JSON.stringify(result.structuredContent));
 });

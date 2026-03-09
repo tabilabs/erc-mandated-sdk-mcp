@@ -134,6 +134,41 @@ test("prepareExecuteTx throws if mandate.deadline exceeds JS safe integer", () =
   });
 });
 
+test("prepareExecuteTx accepts boundary values for uint48 deadline and bps", () => {
+  const vault = "0x1111111111111111111111111111111111111111" as Address;
+  const from = "0x2222222222222222222222222222222222222222" as Address;
+
+  assert.doesNotThrow(() => {
+    prepareExecuteTx({
+      chainId: 11155111,
+      vault,
+      from,
+      mandate: {
+        vault,
+        executor: from,
+        nonce: "1",
+        deadline: ((1n << 48n) - 1n).toString(10),
+        authorityEpoch: "1",
+        allowedAdaptersRoot: ("0x" + "a".repeat(64)) as Hex,
+        maxDrawdownBps: "10000",
+        maxCumulativeDrawdownBps: "10000",
+        payloadDigest: ("0x" + "b".repeat(64)) as Hex,
+        extensionsHash: ("0x" + "c".repeat(64)) as Hex
+      },
+      signature: "0x" as Hex,
+      actions: [
+        {
+          adapter: "0x3333333333333333333333333333333333333333" as Address,
+          value: "0",
+          data: "0x095ea7b3" as Hex
+        }
+      ],
+      adapterProofs: [[("0x" + "d".repeat(64)) as Hex]],
+      extensions: "0x" as Hex
+    });
+  });
+});
+
 test("prepareExecuteTx throws if drawdown bps out of range", () => {
   const vault = "0x1111111111111111111111111111111111111111" as Address;
   const from = "0x2222222222222222222222222222222222222222" as Address;
@@ -169,6 +204,66 @@ test("prepareExecuteTx throws if drawdown bps out of range", () => {
       extensions: "0x" as Hex
     });
   });
+});
+
+test("simulateExecuteVault returns structured revertDecoded fields on call failure", async () => {
+  const client: ExecuteSimulateClient = {
+    async getBlockNumber() {
+      return 123n;
+    },
+    async call() {
+      const error = new Error("execution reverted");
+      (error as Error & { name?: string; shortMessage?: string; data?: string }).name =
+        "CallExecutionError";
+      (error as Error & { shortMessage?: string }).shortMessage =
+        "Execution reverted for unknown reason";
+      (error as Error & { data?: string }).data = "0x08c379a0";
+      throw error;
+    }
+  };
+
+  const vault = "0x1111111111111111111111111111111111111111" as Address;
+  const from = "0x2222222222222222222222222222222222222222" as Address;
+
+  const out = await simulateExecuteVault(
+    {
+      chainId: 11155111,
+      vault,
+      from,
+      mandate: {
+        vault,
+        executor: from,
+        nonce: "1",
+        deadline: "0",
+        authorityEpoch: "1",
+        allowedAdaptersRoot: ("0x" + "a".repeat(64)) as Hex,
+        maxDrawdownBps: "10000",
+        maxCumulativeDrawdownBps: "10000",
+        payloadDigest: ("0x" + "b".repeat(64)) as Hex,
+        extensionsHash: ("0x" + "c".repeat(64)) as Hex
+      },
+      signature: "0x" as Hex,
+      actions: [],
+      adapterProofs: [],
+      extensions: "0x" as Hex
+    },
+    { client }
+  );
+
+  assert.equal(out.result.ok, false);
+  const revert = out.result.revertDecoded as
+    | {
+        message?: string;
+        name?: string;
+        shortMessage?: string;
+        rawData?: string;
+      }
+    | undefined;
+
+  assert.equal(revert?.name, "CallExecutionError");
+  assert.equal(revert?.shortMessage, "Execution reverted for unknown reason");
+  assert.equal(revert?.rawData, "0x08c379a0");
+  assert.equal(typeof revert?.message, "string");
 });
 
 test("simulateExecuteVault rethrows NetworkConfigError when RPC env is missing", async (t) => {

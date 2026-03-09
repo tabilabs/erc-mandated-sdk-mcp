@@ -1,6 +1,6 @@
 import type { LoadedTool } from "./contract/loadTools.js";
 import type { ToolError } from "./index.js";
-import { ensurePayloadMatchesOutputSchema } from "./schemaRepair.js";
+import { ensurePayloadMatchesOutputSchema, type SchemaRepairMode } from "./schemaRepair.js";
 
 type JsonObject = Record<string, unknown>;
 
@@ -36,11 +36,16 @@ export function makeTextContent(text: string): Array<{ type: "text"; text: strin
   return [{ type: "text", text }];
 }
 
-export function buildErrorToolResult(tool: LoadedTool, error: ToolError) {
+export function buildErrorToolResult(
+  tool: LoadedTool,
+  error: ToolError,
+  schemaRepairMode: SchemaRepairMode = "repair",
+  annotateSchemaRepair: boolean = true
+) {
   const basePayload: JsonObject = { error };
-  const repaired = ensurePayloadMatchesOutputSchema(tool, basePayload);
+  const repaired = ensurePayloadMatchesOutputSchema(tool, basePayload, schemaRepairMode);
 
-  if (repaired.addedResultFromSchemaRepair) {
+  if (repaired.addedResultFromSchemaRepair && annotateSchemaRepair) {
     const existingDetails = isObject(error.details) ? error.details : {};
     const patchedError: ToolError = {
       ...error,
@@ -53,18 +58,24 @@ export function buildErrorToolResult(tool: LoadedTool, error: ToolError) {
     repaired.payload.error = patchedError;
 
     if (!tool.validateOutput(repaired.payload)) {
-      const secondRepair = ensurePayloadMatchesOutputSchema(tool, {
-        error: patchedError
-      });
+      const secondRepair = ensurePayloadMatchesOutputSchema(
+        tool,
+        {
+          error: patchedError
+        },
+        schemaRepairMode
+      );
       repaired.payload = secondRepair.payload;
     }
   }
 
   if (!tool.validateOutput(repaired.payload)) {
+    const existingDetails = isObject(error.details) ? error.details : {};
     const internalError: ToolError = {
       code: "INTERNAL_OUTPUT_SCHEMA_MISMATCH",
       message: normalizeAjvErrors(tool.validateOutput.errors ?? []),
       details: {
+        ...existingDetails,
         tool: tool.name,
         validationErrors: {
           errors: (tool.validateOutput.errors ?? []) as unknown
@@ -72,10 +83,28 @@ export function buildErrorToolResult(tool: LoadedTool, error: ToolError) {
       }
     };
 
+    const repairedInternal = ensurePayloadMatchesOutputSchema(
+      tool,
+      { error: internalError },
+      "repair"
+    );
+
+    if (repairedInternal.addedResultFromSchemaRepair && isObject(repairedInternal.payload.error)) {
+      const err = repairedInternal.payload.error as unknown as ToolError;
+      const errDetails = isObject(err.details) ? err.details : {};
+      repairedInternal.payload.error = {
+        ...err,
+        details: {
+          ...errDetails,
+          addedResultFromSchemaRepair: true
+        }
+      };
+    }
+
     return {
       isError: true,
       content: makeTextContent(internalError.message),
-      structuredContent: { error: internalError }
+      structuredContent: repairedInternal.payload
     };
   }
 
