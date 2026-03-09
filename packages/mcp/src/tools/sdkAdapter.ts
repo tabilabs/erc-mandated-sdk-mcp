@@ -1,4 +1,10 @@
 import type {
+  buildFundAndActionPlan,
+  buildAssetTransferPlanFromAccountContext,
+  buildAssetTransferPlan,
+  checkAssetTransferAgainstFundingPolicy,
+  createAgentAccountContext,
+  createAgentFundingPolicy,
   buildMandateSignRequest,
   checkMandateRevoked,
   checkNonceUsed,
@@ -12,7 +18,13 @@ import type {
 } from "@erc-mandated/sdk";
 
 export interface SdkAdapter {
+  createAgentAccountContext: typeof createAgentAccountContext;
+  createAgentFundingPolicy: typeof createAgentFundingPolicy;
+  buildFundAndActionPlan: typeof buildFundAndActionPlan;
+  checkAssetTransferAgainstFundingPolicy: typeof checkAssetTransferAgainstFundingPolicy;
+  buildAssetTransferPlanFromAccountContext: typeof buildAssetTransferPlanFromAccountContext;
   healthCheckVault: typeof healthCheckVault;
+  buildAssetTransferPlan: typeof buildAssetTransferPlan;
   buildMandateSignRequest: typeof buildMandateSignRequest;
   predictVaultAddress: typeof predictVaultAddress;
   prepareCreateVaultTx: typeof prepareCreateVaultTx;

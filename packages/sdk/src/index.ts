@@ -13,6 +13,52 @@ export function getSdkInfo(): SdkInfo {
 export { ErcMandatedSdkError } from "./errors.js";
 
 export {
+  AgentAccountContextError,
+  type AgentAccountContextErrorCode,
+  createAgentAccountContext,
+  buildAssetTransferPlanFromAccountContext,
+  type AgentAccountContext,
+  type CreateAgentAccountContextInput,
+  type CreateAgentAccountContextOutput,
+  type AssetTransferPlanFromContextInput,
+  type AssetTransferPlanFromContextOutput
+} from "./accountContext.js";
+
+export {
+  FundingPolicyError,
+  FundingPolicyViolationError,
+  type FundingPolicyErrorCode,
+  createAgentFundingPolicy,
+  checkAssetTransferAgainstFundingPolicy,
+  type AgentFundingPolicy,
+  type CreateAgentFundingPolicyInput,
+  type CreateAgentFundingPolicyOutput,
+  type CheckAssetTransferAgainstFundingPolicyInput,
+  type CheckAssetTransferAgainstFundingPolicyOutput
+} from "./fundingPolicy.js";
+
+export {
+  FundAndActionPlanError,
+  type FundAndActionPlanErrorCode,
+  buildFundAndActionPlan,
+  type FundAndActionBalanceSnapshot,
+  type FundAndActionTarget,
+  type FundAndActionPlanInput,
+  type FundAndActionPlanOutput
+} from "./fundAndAction.js";
+
+export {
+  FollowUpActionError,
+  buildFollowUpActionPlan,
+  type GenericFollowUpActionIntent,
+  type PredictCreateOrderPayload,
+  type PredictCreateOrderActionIntent,
+  type FollowUpActionIntent,
+  type FollowUpActionPlan,
+  type FollowUpActionErrorCode
+} from "./followUpAction.js";
+
+export {
   NetworkConfigError,
   type NetworkConfigErrorCode,
   getSupportedChains,
@@ -51,6 +97,17 @@ export {
   type MandateBuildSignRequestOutput,
   type MandatePayloadBinding
 } from "./mandate.js";
+
+export {
+  AssetTransferPlanError,
+  type AssetTransferPlanErrorCode,
+  buildAssetTransferPlan,
+  buildErc20TransferAction,
+  type Erc20TransferActionInput,
+  type Erc20TransferActionOutput,
+  type AssetTransferPlanInput,
+  type AssetTransferPlanOutput
+} from "./assetTransfer.js";
 
 export {
   prepareExecuteTx,

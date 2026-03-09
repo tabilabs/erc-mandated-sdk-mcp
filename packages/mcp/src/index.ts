@@ -7,7 +7,13 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 import * as sdk from "@erc-mandated/sdk";
 
 const DEFAULT_SDK_ADAPTER = {
+  createAgentAccountContext: sdk.createAgentAccountContext,
+  createAgentFundingPolicy: sdk.createAgentFundingPolicy,
+  buildFundAndActionPlan: sdk.buildFundAndActionPlan,
+  checkAssetTransferAgainstFundingPolicy: sdk.checkAssetTransferAgainstFundingPolicy,
+  buildAssetTransferPlanFromAccountContext: sdk.buildAssetTransferPlanFromAccountContext,
   healthCheckVault: sdk.healthCheckVault,
+  buildAssetTransferPlan: sdk.buildAssetTransferPlan,
   buildMandateSignRequest: sdk.buildMandateSignRequest,
   predictVaultAddress: sdk.predictVaultAddress,
   prepareCreateVaultTx: sdk.prepareCreateVaultTx,

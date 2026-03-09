@@ -541,3 +541,1379 @@ test("mandate_build_sign_request result must be JSON-serializable (BigInt-safe)"
   assert.equal(result.isError, false);
   assert.doesNotThrow(() => JSON.stringify(result.structuredContent));
 });
+
+test("vault_build_asset_transfer_plan returns JSON-safe transfer plan payload", async (t) => {
+  const transferAdapter = {
+    buildAssetTransferPlan: async () => ({
+      result: {
+        action: {
+          adapter: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+          value: "0",
+          data: "0xa9059cbb"
+        },
+        erc20Call: {
+          to: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+          data: "0xa9059cbb",
+          value: "0"
+        },
+        humanReadableSummary: {
+          kind: "erc20Transfer",
+          tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+          to: "0x2222222222222222222222222222222222222222",
+          amountRaw: "1000000",
+          symbol: "USDT",
+          decimals: 6
+        },
+        signRequest: {
+          typedData: {
+            domain: {
+              chainId: 97n,
+              verifyingContract: "0x92040EBDA2143C3BBD12962479afA87dB6e56059"
+            }
+          },
+          mandate: {
+            vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+            executor: "0x1111111111111111111111111111111111111111",
+            nonce: "1",
+            deadline: "9999999999",
+            authorityEpoch: "1",
+            allowedAdaptersRoot: "0x" + "00".repeat(32),
+            maxDrawdownBps: "10000",
+            maxCumulativeDrawdownBps: "10000",
+            payloadDigest: "0x" + "11".repeat(32),
+            extensionsHash: "0x" + "22".repeat(32)
+          },
+          mandateHash: "0x" + "33".repeat(32),
+          actionsDigest: "0x" + "44".repeat(32),
+          extensionsHash: "0x" + "55".repeat(32)
+        }
+      }
+    })
+  } as any;
+
+  const { client, server } = await createConnectedClient(transferAdapter);
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "vault_build_asset_transfer_plan",
+    arguments: {
+      chainId: 97,
+      vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+      executor: "0x1111111111111111111111111111111111111111",
+      tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+      to: "0x2222222222222222222222222222222222222222",
+      amountRaw: "1000000",
+      nonce: "1",
+      deadline: "9999999999",
+      authorityEpoch: "1",
+      allowedAdaptersRoot: "0x" + "00".repeat(32),
+      maxDrawdownBps: "10000",
+      maxCumulativeDrawdownBps: "10000",
+      symbol: "USDT",
+      decimals: 6
+    }
+  });
+
+  const structured = result.structuredContent as {
+    result?: {
+      humanReadableSummary?: { symbol?: string; decimals?: number };
+      signRequest?: { typedData?: { domain?: { chainId?: string } } };
+    };
+  };
+
+  assert.equal(result.isError, false);
+  assert.equal(structured.result?.humanReadableSummary?.symbol, "USDT");
+  assert.equal(structured.result?.humanReadableSummary?.decimals, 6);
+  assert.equal(structured.result?.signRequest?.typedData?.domain?.chainId, "97");
+  assert.doesNotThrow(() => JSON.stringify(result.structuredContent));
+});
+
+test("vault_simulate_asset_transfer composes plan builder with simulateExecuteVault", async (t) => {
+  const transferAdapter = {
+    buildAssetTransferPlan: async () => ({
+      result: {
+        action: {
+          adapter: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+          value: "0",
+          data: "0xa9059cbb"
+        },
+        erc20Call: {
+          to: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+          data: "0xa9059cbb",
+          value: "0"
+        },
+        humanReadableSummary: {
+          kind: "erc20Transfer",
+          tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+          to: "0x2222222222222222222222222222222222222222",
+          amountRaw: "1000000"
+        },
+        signRequest: {
+          typedData: { domain: { chainId: 97n } },
+          mandate: {
+            vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+            executor: "0x1111111111111111111111111111111111111111",
+            nonce: "1",
+            deadline: "9999999999",
+            authorityEpoch: "1",
+            allowedAdaptersRoot: "0x" + "00".repeat(32),
+            maxDrawdownBps: "10000",
+            maxCumulativeDrawdownBps: "10000",
+            payloadDigest: "0x" + "11".repeat(32),
+            extensionsHash: "0x" + "22".repeat(32)
+          },
+          mandateHash: "0x" + "33".repeat(32),
+          actionsDigest: "0x" + "44".repeat(32),
+          extensionsHash: "0x" + "55".repeat(32)
+        },
+        simulateExecuteInput: {
+          vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+          from: "0x1111111111111111111111111111111111111111",
+          mandate: {
+            vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+            executor: "0x1111111111111111111111111111111111111111",
+            nonce: "1",
+            deadline: "9999999999",
+            authorityEpoch: "1",
+            allowedAdaptersRoot: "0x" + "00".repeat(32),
+            maxDrawdownBps: "10000",
+            maxCumulativeDrawdownBps: "10000",
+            payloadDigest: "0x" + "11".repeat(32),
+            extensionsHash: "0x" + "22".repeat(32)
+          },
+          signature: "0x1234",
+          actions: [
+            {
+              adapter: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+              value: "0",
+              data: "0xa9059cbb"
+            }
+          ],
+          adapterProofs: [["0x" + "66".repeat(32)]],
+          extensions: "0x"
+        }
+      }
+    }),
+    simulateExecuteVault: async () => ({
+      result: {
+        ok: true,
+        blockNumber: 123
+      }
+    })
+  } as any;
+
+  const { client, server } = await createConnectedClient(transferAdapter);
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "vault_simulate_asset_transfer",
+    arguments: {
+      chainId: 97,
+      vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+      executor: "0x1111111111111111111111111111111111111111",
+      tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+      to: "0x2222222222222222222222222222222222222222",
+      amountRaw: "1000000",
+      nonce: "1",
+      deadline: "9999999999",
+      authorityEpoch: "1",
+      allowedAdaptersRoot: "0x" + "00".repeat(32),
+      maxDrawdownBps: "10000",
+      maxCumulativeDrawdownBps: "10000",
+      signature: "0x1234",
+      adapterProofs: [["0x" + "66".repeat(32)]]
+    }
+  });
+
+  const structured = result.structuredContent as {
+    result?: { simulate?: { ok?: boolean; blockNumber?: number } };
+  };
+
+  assert.equal(result.isError, false);
+  assert.equal(structured.result?.simulate?.ok, true);
+  assert.equal(structured.result?.simulate?.blockNumber, 123);
+});
+
+test("vault_prepare_asset_transfer composes plan builder with prepareExecuteTx", async (t) => {
+  const transferAdapter = {
+    buildAssetTransferPlan: async () => ({
+      result: {
+        action: {
+          adapter: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+          value: "0",
+          data: "0xa9059cbb"
+        },
+        erc20Call: {
+          to: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+          data: "0xa9059cbb",
+          value: "0"
+        },
+        humanReadableSummary: {
+          kind: "erc20Transfer",
+          tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+          to: "0x2222222222222222222222222222222222222222",
+          amountRaw: "1000000"
+        },
+        signRequest: {
+          typedData: { domain: { chainId: 97n } },
+          mandate: {
+            vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+            executor: "0x1111111111111111111111111111111111111111",
+            nonce: "1",
+            deadline: "9999999999",
+            authorityEpoch: "1",
+            allowedAdaptersRoot: "0x" + "00".repeat(32),
+            maxDrawdownBps: "10000",
+            maxCumulativeDrawdownBps: "10000",
+            payloadDigest: "0x" + "11".repeat(32),
+            extensionsHash: "0x" + "22".repeat(32)
+          },
+          mandateHash: "0x" + "33".repeat(32),
+          actionsDigest: "0x" + "44".repeat(32),
+          extensionsHash: "0x" + "55".repeat(32)
+        },
+        prepareExecuteInput: {
+          vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+          from: "0x1111111111111111111111111111111111111111",
+          mandate: {
+            vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+            executor: "0x1111111111111111111111111111111111111111",
+            nonce: "1",
+            deadline: "9999999999",
+            authorityEpoch: "1",
+            allowedAdaptersRoot: "0x" + "00".repeat(32),
+            maxDrawdownBps: "10000",
+            maxCumulativeDrawdownBps: "10000",
+            payloadDigest: "0x" + "11".repeat(32),
+            extensionsHash: "0x" + "22".repeat(32)
+          },
+          signature: "0x1234",
+          actions: [
+            {
+              adapter: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+              value: "0",
+              data: "0xa9059cbb"
+            }
+          ],
+          adapterProofs: [["0x" + "66".repeat(32)]],
+          extensions: "0x"
+        }
+      }
+    }),
+    prepareExecuteTx: async () => ({
+      result: {
+        txRequest: {
+          from: "0x1111111111111111111111111111111111111111",
+          to: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+          data: "0xdeadbeef",
+          value: "0"
+        }
+      }
+    })
+  } as any;
+
+  const { client, server } = await createConnectedClient(transferAdapter);
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "vault_prepare_asset_transfer",
+    arguments: {
+      chainId: 97,
+      vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+      executor: "0x1111111111111111111111111111111111111111",
+      tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+      to: "0x2222222222222222222222222222222222222222",
+      amountRaw: "1000000",
+      nonce: "1",
+      deadline: "9999999999",
+      authorityEpoch: "1",
+      allowedAdaptersRoot: "0x" + "00".repeat(32),
+      maxDrawdownBps: "10000",
+      maxCumulativeDrawdownBps: "10000",
+      signature: "0x1234",
+      adapterProofs: [["0x" + "66".repeat(32)]]
+    }
+  });
+
+  const structured = result.structuredContent as {
+    result?: { txRequest?: { to?: string; data?: string } };
+  };
+
+  assert.equal(result.isError, false);
+  assert.equal(structured.result?.txRequest?.to, "0x92040EBDA2143C3BBD12962479afA87dB6e56059");
+  assert.equal(structured.result?.txRequest?.data, "0xdeadbeef");
+});
+
+test("agent_account_context_create returns normalized account context", async (t) => {
+  const { client, server } = await createConnectedClient();
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "agent_account_context_create",
+    arguments: {
+      agentId: "predict-bot-ctx",
+      chainId: 97,
+      vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+      authority: "0x1111111111111111111111111111111111111111",
+      executor: "0x2222222222222222222222222222222222222222",
+      assetRegistryRef: "memory://assets/bsc-testnet",
+      fundingPolicyRef: "memory://policy/predict-bot-ctx",
+      defaults: {
+        allowedAdaptersRoot: "0x" + "aa".repeat(32),
+        maxDrawdownBps: "1000",
+        maxCumulativeDrawdownBps: "3000",
+        payloadBinding: "actionsDigest",
+        extensions: "0x"
+      },
+      createdAt: "2026-03-09T00:00:00.000Z",
+      updatedAt: "2026-03-09T00:00:00.000Z"
+    }
+  });
+
+  const structured = result.structuredContent as {
+    result?: {
+      accountContext?: {
+        agentId?: string;
+        assetRegistryRef?: string;
+        defaults?: { maxDrawdownBps?: string };
+      };
+    };
+  };
+
+  assert.equal(result.isError, false);
+  assert.equal(structured.result?.accountContext?.agentId, "predict-bot-ctx");
+  assert.equal(structured.result?.accountContext?.assetRegistryRef, "memory://assets/bsc-testnet");
+  assert.equal(structured.result?.accountContext?.defaults?.maxDrawdownBps, "1000");
+});
+
+test("agent_funding_policy_create returns normalized funding policy", async (t) => {
+  const { client, server } = await createConnectedClient();
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "agent_funding_policy_create",
+    arguments: {
+      policyId: "predict-funding",
+      allowedTokenAddresses: ["0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E"],
+      allowedRecipients: ["0x2222222222222222222222222222222222222222"],
+      maxAmountPerTx: "1000000",
+      maxAmountPerWindow: "5000000",
+      windowSeconds: 86400,
+      expiresAt: "2026-12-31T00:00:00.000Z",
+      repeatable: true,
+      createdAt: "2026-03-09T00:00:00.000Z",
+      updatedAt: "2026-03-09T00:00:00.000Z"
+    }
+  });
+
+  const structured = result.structuredContent as {
+    result?: { fundingPolicy?: { policyId?: string; maxAmountPerTx?: string } };
+  };
+
+  assert.equal(result.isError, false);
+  assert.equal(structured.result?.fundingPolicy?.policyId, "predict-funding");
+  assert.equal(structured.result?.fundingPolicy?.maxAmountPerTx, "1000000");
+});
+
+test("vault_check_asset_transfer_policy returns structured violations", async (t) => {
+  const { client, server } = await createConnectedClient();
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "vault_check_asset_transfer_policy",
+    arguments: {
+      fundingPolicy: {
+        policyId: "predict-funding",
+        allowedTokenAddresses: ["0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E"],
+        allowedRecipients: ["0x2222222222222222222222222222222222222222"],
+        maxAmountPerTx: "100",
+        createdAt: "2026-03-09T00:00:00.000Z",
+        updatedAt: "2026-03-09T00:00:00.000Z"
+      },
+      tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+      to: "0x3333333333333333333333333333333333333333",
+      amountRaw: "500"
+    }
+  });
+
+  const structured = result.structuredContent as {
+    result?: { allowed?: boolean; violations?: Array<{ code?: string }> };
+  };
+
+  assert.equal(result.isError, false);
+  assert.equal(structured.result?.allowed, false);
+  assert.deepEqual(
+    (structured.result?.violations ?? []).map((violation) => violation.code).sort(),
+    ["AMOUNT_EXCEEDS_PER_TX", "RECIPIENT_NOT_ALLOWED"].sort()
+  );
+});
+
+test("vault_build_asset_transfer_plan_from_context returns context-aware plan payload", async (t) => {
+  const contextAdapter = {
+    buildAssetTransferPlanFromAccountContext: async () => ({
+      result: {
+        accountContext: {
+          agentId: "predict-bot-ctx",
+          chainId: 97,
+          vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+          authority: "0x1111111111111111111111111111111111111111",
+          executor: "0x2222222222222222222222222222222222222222",
+          createdAt: "2026-03-09T00:00:00.000Z",
+          updatedAt: "2026-03-09T00:00:00.000Z"
+        },
+        action: {
+          adapter: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+          value: "0",
+          data: "0xa9059cbb"
+        },
+        erc20Call: {
+          to: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+          data: "0xa9059cbb",
+          value: "0"
+        },
+        humanReadableSummary: {
+          kind: "erc20Transfer",
+          tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+          to: "0x3333333333333333333333333333333333333333",
+          amountRaw: "1000000"
+        },
+        signRequest: {
+          typedData: { domain: { chainId: 97n } },
+          mandate: {
+            vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+            executor: "0x2222222222222222222222222222222222222222",
+            nonce: "1",
+            deadline: "9999999999",
+            authorityEpoch: "1",
+            allowedAdaptersRoot: "0x" + "00".repeat(32),
+            maxDrawdownBps: "10000",
+            maxCumulativeDrawdownBps: "10000",
+            payloadDigest: "0x" + "11".repeat(32),
+            extensionsHash: "0x" + "22".repeat(32)
+          },
+          mandateHash: "0x" + "33".repeat(32),
+          actionsDigest: "0x" + "44".repeat(32),
+          extensionsHash: "0x" + "55".repeat(32)
+        }
+      }
+    })
+  } as any;
+
+  const { client, server } = await createConnectedClient(contextAdapter);
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "vault_build_asset_transfer_plan_from_context",
+    arguments: {
+      accountContext: {
+        agentId: "predict-bot-ctx",
+        chainId: 97,
+        vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+        authority: "0x1111111111111111111111111111111111111111",
+        executor: "0x2222222222222222222222222222222222222222",
+        createdAt: "2026-03-09T00:00:00.000Z",
+        updatedAt: "2026-03-09T00:00:00.000Z"
+      },
+      fundingPolicy: {
+        policyId: "predict-funding",
+        createdAt: "2026-03-09T00:00:00.000Z",
+        updatedAt: "2026-03-09T00:00:00.000Z"
+      },
+      tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+      to: "0x3333333333333333333333333333333333333333",
+      amountRaw: "1000000",
+      nonce: "1",
+      deadline: "9999999999",
+      authorityEpoch: "1",
+      allowedAdaptersRoot: "0x" + "00".repeat(32),
+      maxDrawdownBps: "10000",
+      maxCumulativeDrawdownBps: "10000"
+    }
+  });
+
+  const structured = result.structuredContent as {
+    result?: { accountContext?: { agentId?: string }; signRequest?: { typedData?: { domain?: { chainId?: string } } } };
+  };
+
+  assert.equal(result.isError, false);
+  assert.equal(structured.result?.accountContext?.agentId, "predict-bot-ctx");
+  assert.equal(structured.result?.signRequest?.typedData?.domain?.chainId, "97");
+});
+
+test("vault_simulate_asset_transfer_from_context composes context plan builder with simulateExecuteVault", async (t) => {
+  const contextAdapter = {
+    buildAssetTransferPlanFromAccountContext: async () => ({
+      result: {
+        accountContext: {
+          agentId: "predict-bot-ctx",
+          chainId: 97,
+          vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+          authority: "0x1111111111111111111111111111111111111111",
+          executor: "0x2222222222222222222222222222222222222222",
+          createdAt: "2026-03-09T00:00:00.000Z",
+          updatedAt: "2026-03-09T00:00:00.000Z"
+        },
+        action: {
+          adapter: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+          value: "0",
+          data: "0xa9059cbb"
+        },
+        erc20Call: {
+          to: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+          data: "0xa9059cbb",
+          value: "0"
+        },
+        humanReadableSummary: {
+          kind: "erc20Transfer",
+          tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+          to: "0x3333333333333333333333333333333333333333",
+          amountRaw: "1000000"
+        },
+        signRequest: {
+          typedData: { domain: { chainId: 97n } },
+          mandate: {
+            vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+            executor: "0x2222222222222222222222222222222222222222",
+            nonce: "1",
+            deadline: "9999999999",
+            authorityEpoch: "1",
+            allowedAdaptersRoot: "0x" + "00".repeat(32),
+            maxDrawdownBps: "10000",
+            maxCumulativeDrawdownBps: "10000",
+            payloadDigest: "0x" + "11".repeat(32),
+            extensionsHash: "0x" + "22".repeat(32)
+          },
+          mandateHash: "0x" + "33".repeat(32),
+          actionsDigest: "0x" + "44".repeat(32),
+          extensionsHash: "0x" + "55".repeat(32)
+        },
+        simulateExecuteInput: {
+          vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+          from: "0x2222222222222222222222222222222222222222",
+          mandate: {
+            vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+            executor: "0x2222222222222222222222222222222222222222",
+            nonce: "1",
+            deadline: "9999999999",
+            authorityEpoch: "1",
+            allowedAdaptersRoot: "0x" + "00".repeat(32),
+            maxDrawdownBps: "10000",
+            maxCumulativeDrawdownBps: "10000",
+            payloadDigest: "0x" + "11".repeat(32),
+            extensionsHash: "0x" + "22".repeat(32)
+          },
+          signature: "0x1234",
+          actions: [
+            {
+              adapter: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+              value: "0",
+              data: "0xa9059cbb"
+            }
+          ],
+          adapterProofs: [["0x" + "66".repeat(32)]],
+          extensions: "0x"
+        }
+      }
+    }),
+    simulateExecuteVault: async () => ({
+      result: {
+        ok: true,
+        blockNumber: 321
+      }
+    })
+  } as any;
+
+  const { client, server } = await createConnectedClient(contextAdapter);
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "vault_simulate_asset_transfer_from_context",
+    arguments: {
+      accountContext: {
+        agentId: "predict-bot-ctx",
+        chainId: 97,
+        vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+        authority: "0x1111111111111111111111111111111111111111",
+        executor: "0x2222222222222222222222222222222222222222",
+        createdAt: "2026-03-09T00:00:00.000Z",
+        updatedAt: "2026-03-09T00:00:00.000Z"
+      },
+      fundingPolicy: {
+        policyId: "predict-funding",
+        createdAt: "2026-03-09T00:00:00.000Z",
+        updatedAt: "2026-03-09T00:00:00.000Z"
+      },
+      tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+      to: "0x3333333333333333333333333333333333333333",
+      amountRaw: "1000000",
+      nonce: "1",
+      deadline: "9999999999",
+      authorityEpoch: "1",
+      allowedAdaptersRoot: "0x" + "00".repeat(32),
+      maxDrawdownBps: "10000",
+      maxCumulativeDrawdownBps: "10000",
+      signature: "0x1234",
+      adapterProofs: [["0x" + "66".repeat(32)]]
+    }
+  });
+
+  const structured = result.structuredContent as {
+    result?: { accountContext?: { agentId?: string }; simulate?: { blockNumber?: number } };
+  };
+
+  assert.equal(result.isError, false);
+  assert.equal(structured.result?.accountContext?.agentId, "predict-bot-ctx");
+  assert.equal(structured.result?.simulate?.blockNumber, 321);
+});
+
+test("vault_prepare_asset_transfer_from_context composes context plan builder with prepareExecuteTx", async (t) => {
+  const contextAdapter = {
+    buildAssetTransferPlanFromAccountContext: async () => ({
+      result: {
+        accountContext: {
+          agentId: "predict-bot-ctx",
+          chainId: 97,
+          vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+          authority: "0x1111111111111111111111111111111111111111",
+          executor: "0x2222222222222222222222222222222222222222",
+          createdAt: "2026-03-09T00:00:00.000Z",
+          updatedAt: "2026-03-09T00:00:00.000Z"
+        },
+        action: {
+          adapter: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+          value: "0",
+          data: "0xa9059cbb"
+        },
+        erc20Call: {
+          to: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+          data: "0xa9059cbb",
+          value: "0"
+        },
+        humanReadableSummary: {
+          kind: "erc20Transfer",
+          tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+          to: "0x3333333333333333333333333333333333333333",
+          amountRaw: "1000000"
+        },
+        signRequest: {
+          typedData: { domain: { chainId: 97n } },
+          mandate: {
+            vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+            executor: "0x2222222222222222222222222222222222222222",
+            nonce: "1",
+            deadline: "9999999999",
+            authorityEpoch: "1",
+            allowedAdaptersRoot: "0x" + "00".repeat(32),
+            maxDrawdownBps: "10000",
+            maxCumulativeDrawdownBps: "10000",
+            payloadDigest: "0x" + "11".repeat(32),
+            extensionsHash: "0x" + "22".repeat(32)
+          },
+          mandateHash: "0x" + "33".repeat(32),
+          actionsDigest: "0x" + "44".repeat(32),
+          extensionsHash: "0x" + "55".repeat(32)
+        },
+        prepareExecuteInput: {
+          vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+          from: "0x2222222222222222222222222222222222222222",
+          mandate: {
+            vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+            executor: "0x2222222222222222222222222222222222222222",
+            nonce: "1",
+            deadline: "9999999999",
+            authorityEpoch: "1",
+            allowedAdaptersRoot: "0x" + "00".repeat(32),
+            maxDrawdownBps: "10000",
+            maxCumulativeDrawdownBps: "10000",
+            payloadDigest: "0x" + "11".repeat(32),
+            extensionsHash: "0x" + "22".repeat(32)
+          },
+          signature: "0x1234",
+          actions: [
+            {
+              adapter: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+              value: "0",
+              data: "0xa9059cbb"
+            }
+          ],
+          adapterProofs: [["0x" + "66".repeat(32)]],
+          extensions: "0x"
+        }
+      }
+    }),
+    prepareExecuteTx: async () => ({
+      result: {
+        txRequest: {
+          from: "0x2222222222222222222222222222222222222222",
+          to: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+          data: "0xbeadfeed",
+          value: "0"
+        }
+      }
+    })
+  } as any;
+
+  const { client, server } = await createConnectedClient(contextAdapter);
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "vault_prepare_asset_transfer_from_context",
+    arguments: {
+      accountContext: {
+        agentId: "predict-bot-ctx",
+        chainId: 97,
+        vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+        authority: "0x1111111111111111111111111111111111111111",
+        executor: "0x2222222222222222222222222222222222222222",
+        createdAt: "2026-03-09T00:00:00.000Z",
+        updatedAt: "2026-03-09T00:00:00.000Z"
+      },
+      fundingPolicy: {
+        policyId: "predict-funding",
+        createdAt: "2026-03-09T00:00:00.000Z",
+        updatedAt: "2026-03-09T00:00:00.000Z"
+      },
+      tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+      to: "0x3333333333333333333333333333333333333333",
+      amountRaw: "1000000",
+      nonce: "1",
+      deadline: "9999999999",
+      authorityEpoch: "1",
+      allowedAdaptersRoot: "0x" + "00".repeat(32),
+      maxDrawdownBps: "10000",
+      maxCumulativeDrawdownBps: "10000",
+      signature: "0x1234",
+      adapterProofs: [["0x" + "66".repeat(32)]]
+    }
+  });
+
+  const structured = result.structuredContent as {
+    result?: { accountContext?: { agentId?: string }; txRequest?: { data?: string } };
+  };
+
+  assert.equal(result.isError, false);
+  assert.equal(structured.result?.accountContext?.agentId, "predict-bot-ctx");
+  assert.equal(structured.result?.txRequest?.data, "0xbeadfeed");
+});
+
+const validFundAndActionBalanceSnapshot = {
+  snapshotAt: "2026-03-09T00:10:00.000Z",
+  maxStalenessSeconds: 300,
+  observedAtBlock: "123456",
+  source: "predict-balance-indexer"
+} as const;
+
+test("agent_build_fund_and_action_plan returns funding step when target balance is insufficient", async (t) => {
+  const orchestrationAdapter = {
+    buildFundAndActionPlan: async () => ({
+      result: {
+        accountContext: {
+          agentId: "predict-bot-fund",
+          chainId: 97,
+          vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+          authority: "0x1111111111111111111111111111111111111111",
+          executor: "0x2222222222222222222222222222222222222222",
+          createdAt: "2026-03-09T00:00:00.000Z",
+          updatedAt: "2026-03-09T00:00:00.000Z"
+        },
+        fundingPolicy: {
+          policyId: "predict-topup-policy",
+          allowedTokenAddresses: ["0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E"],
+          allowedRecipients: ["0x3333333333333333333333333333333333333333"],
+          createdAt: "2026-03-09T00:00:00.000Z",
+          updatedAt: "2026-03-09T00:00:00.000Z"
+        },
+        fundingTarget: {
+          label: "predict-account",
+          recipient: "0x3333333333333333333333333333333333333333",
+          tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+          requiredAmountRaw: "1000000",
+          currentBalanceRaw: "250000",
+          balanceSnapshot: validFundAndActionBalanceSnapshot,
+          fundingShortfallRaw: "750000",
+          symbol: "USDT",
+          decimals: 6
+        },
+        evaluatedAt: "2026-03-09T00:12:00.000Z",
+        fundingRequired: true,
+        fundingPlan: {
+          accountContext: {
+            agentId: "predict-bot-fund",
+            chainId: 97,
+            vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+            authority: "0x1111111111111111111111111111111111111111",
+            executor: "0x2222222222222222222222222222222222222222",
+            createdAt: "2026-03-09T00:00:00.000Z",
+            updatedAt: "2026-03-09T00:00:00.000Z"
+          },
+          action: {
+            adapter: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+            value: "0",
+            data: "0xa9059cbb"
+          },
+          erc20Call: {
+            to: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+            data: "0xa9059cbb",
+            value: "0"
+          },
+          humanReadableSummary: {
+            kind: "erc20Transfer",
+            tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+            to: "0x3333333333333333333333333333333333333333",
+            amountRaw: "750000",
+            symbol: "USDT",
+            decimals: 6
+          },
+          signRequest: {
+            typedData: { domain: { chainId: 97n } },
+            mandate: {
+              vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+              executor: "0x2222222222222222222222222222222222222222",
+              nonce: "1",
+              deadline: "9999999999",
+              authorityEpoch: "1",
+              allowedAdaptersRoot: "0x" + "00".repeat(32),
+              maxDrawdownBps: "10000",
+              maxCumulativeDrawdownBps: "10000",
+              payloadDigest: "0x" + "11".repeat(32),
+              extensionsHash: "0x" + "22".repeat(32)
+            },
+            mandateHash: "0x" + "33".repeat(32),
+            actionsDigest: "0x" + "44".repeat(32),
+            extensionsHash: "0x" + "55".repeat(32)
+          },
+          simulateExecuteInput: {
+            chainId: 97,
+            vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+            from: "0x2222222222222222222222222222222222222222",
+            mandate: {
+              vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+              executor: "0x2222222222222222222222222222222222222222",
+              nonce: "1",
+              deadline: "9999999999",
+              authorityEpoch: "1",
+              allowedAdaptersRoot: "0x" + "00".repeat(32),
+              maxDrawdownBps: "10000",
+              maxCumulativeDrawdownBps: "10000",
+              payloadDigest: "0x" + "11".repeat(32),
+              extensionsHash: "0x" + "22".repeat(32)
+            },
+            signature: "0x1234",
+            actions: [
+              {
+                adapter: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+                value: "0",
+                data: "0xa9059cbb"
+              }
+            ],
+            adapterProofs: [["0x" + "66".repeat(32)]],
+            extensions: "0x"
+          },
+          prepareExecuteInput: {
+            chainId: 97,
+            vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+            from: "0x2222222222222222222222222222222222222222",
+            mandate: {
+              vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+              executor: "0x2222222222222222222222222222222222222222",
+              nonce: "1",
+              deadline: "9999999999",
+              authorityEpoch: "1",
+              allowedAdaptersRoot: "0x" + "00".repeat(32),
+              maxDrawdownBps: "10000",
+              maxCumulativeDrawdownBps: "10000",
+              payloadDigest: "0x" + "11".repeat(32),
+              extensionsHash: "0x" + "22".repeat(32)
+            },
+            signature: "0x1234",
+            actions: [
+              {
+                adapter: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+                value: "0",
+                data: "0xa9059cbb"
+              }
+            ],
+            adapterProofs: [["0x" + "66".repeat(32)]],
+            extensions: "0x"
+          }
+        },
+        followUpAction: {
+          kind: "predict.createOrder",
+          target: "predict-order-engine",
+          payload: {
+            marketId: "btc-1h-up",
+            collateralTokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+            collateralAmountRaw: "500000",
+            orderSide: "buy"
+          }
+        },
+        followUpActionPlan: {
+          kind: "predict.createOrder",
+          target: "predict-order-engine",
+          executionMode: "offchain-api",
+          summary: "Create predict order for market btc-1h-up using 500000 units of 0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E.",
+          assetRequirement: {
+            tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+            amountRaw: "500000"
+          },
+          payload: {
+            marketId: "btc-1h-up",
+            collateralTokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+            collateralAmountRaw: "500000",
+            orderSide: "buy"
+          }
+        },
+        steps: [
+          {
+            kind: "fundTargetAccount",
+            status: "required",
+            summary: "Fund predict-account with 750000 units of USDT."
+          },
+          {
+            kind: "followUpAction",
+            status: "pending",
+            summary: "Run follow-up action: predict.createOrder."
+          }
+        ]
+      }
+    })
+  } as any;
+
+  const { client, server } = await createConnectedClient(orchestrationAdapter);
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "agent_build_fund_and_action_plan",
+    arguments: {
+      accountContext: {
+        agentId: "predict-bot-fund",
+        chainId: 97,
+        vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+        authority: "0x1111111111111111111111111111111111111111",
+        executor: "0x2222222222222222222222222222222222222222",
+        createdAt: "2026-03-09T00:00:00.000Z",
+        updatedAt: "2026-03-09T00:00:00.000Z"
+      },
+      fundingPolicy: {
+        policyId: "predict-topup-policy",
+        createdAt: "2026-03-09T00:00:00.000Z",
+        updatedAt: "2026-03-09T00:00:00.000Z"
+      },
+      fundingTarget: {
+        label: "predict-account",
+        recipient: "0x3333333333333333333333333333333333333333",
+        tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+        requiredAmountRaw: "1000000",
+        currentBalanceRaw: "250000",
+        balanceSnapshot: validFundAndActionBalanceSnapshot,
+        symbol: "USDT",
+        decimals: 6
+      },
+      fundingContext: {
+        nonce: "1",
+        deadline: "9999999999",
+        authorityEpoch: "1",
+        policyEvaluation: {
+          now: "2026-03-09T00:12:00.000Z"
+        },
+        executeContext: {
+          signature: "0x1234",
+          adapterProofs: [["0x" + "66".repeat(32)]]
+        }
+      },
+      followUpAction: {
+        kind: "predict.createOrder",
+        target: "predict-order-engine",
+        payload: {
+          marketId: "btc-1h-up",
+          collateralTokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+          collateralAmountRaw: "500000",
+          orderSide: "buy"
+        }
+      }
+    }
+  });
+
+  const structured = result.structuredContent as {
+    result?: {
+      evaluatedAt?: string;
+      fundingRequired?: boolean;
+      fundingTarget?: { fundingShortfallRaw?: string; balanceSnapshot?: { snapshotAt?: string } };
+      fundingPlan?: { signRequest?: { typedData?: { domain?: { chainId?: string } } } };
+      followUpActionPlan?: { executionMode?: string; assetRequirement?: { amountRaw?: string } };
+      steps?: Array<{ kind?: string; status?: string }>;
+    };
+  };
+
+  assert.equal(result.isError, false);
+  assert.equal(structured.result?.evaluatedAt, "2026-03-09T00:12:00.000Z");
+  assert.equal(structured.result?.fundingRequired, true);
+  assert.equal(structured.result?.fundingTarget?.fundingShortfallRaw, "750000");
+  assert.equal(structured.result?.fundingTarget?.balanceSnapshot?.snapshotAt, "2026-03-09T00:10:00.000Z");
+  assert.equal(structured.result?.fundingPlan?.signRequest?.typedData?.domain?.chainId, "97");
+  assert.equal(structured.result?.followUpActionPlan?.executionMode, "offchain-api");
+  assert.equal(structured.result?.followUpActionPlan?.assetRequirement?.amountRaw, "500000");
+  assert.deepEqual(
+    structured.result?.steps?.map((step) => [step.kind, step.status]),
+    [
+      ["fundTargetAccount", "required"],
+      ["followUpAction", "pending"]
+    ]
+  );
+});
+
+test("agent_build_fund_and_action_plan skips funding step when target balance is already sufficient", async (t) => {
+  const orchestrationAdapter = {
+    buildFundAndActionPlan: async () => ({
+      result: {
+        accountContext: {
+          agentId: "predict-bot-funded",
+          chainId: 97,
+          vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+          authority: "0x1111111111111111111111111111111111111111",
+          executor: "0x2222222222222222222222222222222222222222",
+          createdAt: "2026-03-09T00:00:00.000Z",
+          updatedAt: "2026-03-09T00:00:00.000Z"
+        },
+        fundingTarget: {
+          label: "predict-account",
+          recipient: "0x3333333333333333333333333333333333333333",
+          tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+          requiredAmountRaw: "1000000",
+          currentBalanceRaw: "1000000",
+          balanceSnapshot: validFundAndActionBalanceSnapshot,
+          fundingShortfallRaw: "0"
+        },
+        evaluatedAt: "2026-03-09T00:12:00.000Z",
+        fundingRequired: false,
+        followUpAction: {
+          kind: "custom.notify"
+        },
+        followUpActionPlan: {
+          kind: "custom.notify",
+          executionMode: "custom",
+          summary: "Run follow-up action: custom.notify."
+        },
+        steps: [
+          {
+            kind: "fundTargetAccount",
+            status: "skipped",
+            summary: "predict-account already has sufficient balance."
+          },
+          {
+            kind: "followUpAction",
+            status: "pending",
+            summary: "Run follow-up action: custom.notify."
+          }
+        ]
+      }
+    })
+  } as any;
+
+  const { client, server } = await createConnectedClient(orchestrationAdapter);
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "agent_build_fund_and_action_plan",
+    arguments: {
+      accountContext: {
+        agentId: "predict-bot-funded",
+        chainId: 97,
+        vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+        authority: "0x1111111111111111111111111111111111111111",
+        executor: "0x2222222222222222222222222222222222222222",
+        createdAt: "2026-03-09T00:00:00.000Z",
+        updatedAt: "2026-03-09T00:00:00.000Z"
+      },
+      fundingTarget: {
+        label: "predict-account",
+        recipient: "0x3333333333333333333333333333333333333333",
+        tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+        requiredAmountRaw: "1000000",
+        currentBalanceRaw: "1000000",
+        balanceSnapshot: validFundAndActionBalanceSnapshot
+      },
+      fundingContext: {
+        nonce: "2",
+        deadline: "9999999999",
+        authorityEpoch: "1",
+        policyEvaluation: {
+          now: "2026-03-09T00:12:00.000Z"
+        }
+      },
+      followUpAction: {
+        kind: "custom.notify"
+      }
+    }
+  });
+
+  const structured = result.structuredContent as {
+    result?: {
+      evaluatedAt?: string;
+      fundingRequired?: boolean;
+      fundingPlan?: unknown;
+      followUpActionPlan?: { executionMode?: string };
+      steps?: Array<{ status?: string }>;
+    };
+  };
+
+  assert.equal(result.isError, false);
+  assert.equal(structured.result?.evaluatedAt, "2026-03-09T00:12:00.000Z");
+  assert.equal(structured.result?.fundingRequired, false);
+  assert.equal(structured.result?.fundingPlan, undefined);
+  assert.equal(structured.result?.followUpActionPlan?.executionMode, "custom");
+  assert.deepEqual(
+    structured.result?.steps?.map((step) => step.status),
+    ["skipped", "pending"]
+  );
+});
+
+test("agent_build_fund_and_action_plan rejects invalid predict.createOrder payload at schema layer", async (t) => {
+  const { client, server } = await createConnectedClient();
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "agent_build_fund_and_action_plan",
+    arguments: {
+      accountContext: {
+        agentId: "predict-bot-funded",
+        chainId: 97,
+        vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+        authority: "0x1111111111111111111111111111111111111111",
+        executor: "0x2222222222222222222222222222222222222222",
+        createdAt: "2026-03-09T00:00:00.000Z",
+        updatedAt: "2026-03-09T00:00:00.000Z"
+      },
+      fundingTarget: {
+        label: "predict-account",
+        recipient: "0x3333333333333333333333333333333333333333",
+        tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+        requiredAmountRaw: "1000000",
+        currentBalanceRaw: "1000000",
+        balanceSnapshot: validFundAndActionBalanceSnapshot
+      },
+      fundingContext: {
+        nonce: "2",
+        deadline: "9999999999",
+        authorityEpoch: "1"
+      },
+      followUpAction: {
+        kind: "predict.createOrder",
+        target: "predict-order-engine",
+        payload: {
+          marketId: "btc-1h-up",
+          collateralAmountRaw: "500000"
+        }
+      }
+    }
+  });
+
+  const structured = result.structuredContent as {
+    error?: { code?: string; message?: string };
+  };
+
+  assert.equal(result.isError, true);
+  assert.equal(structured.error?.code, "INVALID_INPUT");
+  assert.ok((structured.error?.message ?? "").includes("collateralTokenAddress"));
+});
+
+test("agent_build_fund_and_action_plan rejects missing currentBalanceRaw at schema layer", async (t) => {
+  const { client, server } = await createConnectedClient();
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "agent_build_fund_and_action_plan",
+    arguments: {
+      accountContext: {
+        agentId: "predict-bot-funded",
+        chainId: 97,
+        vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+        authority: "0x1111111111111111111111111111111111111111",
+        executor: "0x2222222222222222222222222222222222222222",
+        createdAt: "2026-03-09T00:00:00.000Z",
+        updatedAt: "2026-03-09T00:00:00.000Z"
+      },
+      fundingTarget: {
+        label: "predict-account",
+        recipient: "0x3333333333333333333333333333333333333333",
+        tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+        requiredAmountRaw: "1000000",
+        balanceSnapshot: validFundAndActionBalanceSnapshot
+      },
+      fundingContext: {
+        nonce: "2",
+        deadline: "9999999999",
+        authorityEpoch: "1"
+      },
+      followUpAction: {
+        kind: "predict.createOrder"
+      }
+    }
+  });
+
+  const structured = result.structuredContent as {
+    result?: unknown;
+    error?: { code?: string; message?: string; details?: { addedResultFromSchemaRepair?: boolean } };
+  };
+
+  assert.equal(result.isError, true);
+  assert.equal(structured.error?.code, "INVALID_INPUT");
+  assert.equal(typeof structured.error?.message, "string");
+  assert.ok((structured.error?.message ?? "").includes("currentBalanceRaw"));
+  assert.equal(structured.result, undefined);
+});
+
+test("agent_build_fund_and_action_plan rejects missing balanceSnapshot at schema layer", async (t) => {
+  const { client, server } = await createConnectedClient();
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "agent_build_fund_and_action_plan",
+    arguments: {
+      accountContext: {
+        agentId: "predict-bot-funded",
+        chainId: 97,
+        vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+        authority: "0x1111111111111111111111111111111111111111",
+        executor: "0x2222222222222222222222222222222222222222",
+        createdAt: "2026-03-09T00:00:00.000Z",
+        updatedAt: "2026-03-09T00:00:00.000Z"
+      },
+      fundingTarget: {
+        label: "predict-account",
+        recipient: "0x3333333333333333333333333333333333333333",
+        tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+        requiredAmountRaw: "1000000",
+        currentBalanceRaw: "1000000"
+      },
+      fundingContext: {
+        nonce: "2",
+        deadline: "9999999999",
+        authorityEpoch: "1"
+      },
+      followUpAction: {
+        kind: "custom.notify"
+      }
+    }
+  });
+
+  const structured = result.structuredContent as {
+    result?: unknown;
+    error?: { code?: string; message?: string };
+  };
+
+  assert.equal(result.isError, true);
+  assert.equal(structured.error?.code, "INVALID_INPUT");
+  assert.ok((structured.error?.message ?? "").includes("balanceSnapshot"));
+  assert.equal(structured.result, undefined);
+});
+
+test("agent_build_fund_and_action_plan rejects stale balance snapshot at SDK layer", async (t) => {
+  const { client, server } = await createConnectedClient();
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "agent_build_fund_and_action_plan",
+    arguments: {
+      accountContext: {
+        agentId: "predict-bot-funded",
+        chainId: 97,
+        vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+        authority: "0x1111111111111111111111111111111111111111",
+        executor: "0x2222222222222222222222222222222222222222",
+        createdAt: "2026-03-09T00:00:00.000Z",
+        updatedAt: "2026-03-09T00:00:00.000Z"
+      },
+      fundingTarget: {
+        label: "predict-account",
+        recipient: "0x3333333333333333333333333333333333333333",
+        tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+        requiredAmountRaw: "1000000",
+        currentBalanceRaw: "100000",
+        balanceSnapshot: {
+          snapshotAt: "2026-03-09T00:00:00.000Z",
+          maxStalenessSeconds: 60
+        }
+      },
+      fundingContext: {
+        nonce: "2",
+        deadline: "9999999999",
+        authorityEpoch: "1",
+        policyEvaluation: {
+          now: "2026-03-09T00:05:00.000Z"
+        }
+      },
+      followUpAction: {
+        kind: "custom.notify"
+      }
+    }
+  });
+
+  const structured = result.structuredContent as {
+    error?: { code?: string; message?: string };
+  };
+
+  assert.equal(result.isError, true);
+  assert.equal(structured.error?.code, "STALE_BALANCE_SNAPSHOT");
+  assert.ok((structured.error?.message ?? "").includes("stale"));
+});
