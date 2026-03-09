@@ -274,6 +274,43 @@
       }
     },
     {
+      "name": "vault_asset_transfer_result_create",
+      "description": "Normalize an onchain asset transfer execution result envelope without invoking a real transaction sender.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["assetTransferPlan", "status"],
+        "properties": {
+          "assetTransferPlan": { "$ref": "#/definitions/assetTransferPlanResult" },
+          "status": { "$ref": "#/definitions/assetTransferExecutionStatus" },
+          "updatedAt": { "type": "string", "minLength": 1 },
+          "submittedAt": { "type": "string", "minLength": 1 },
+          "completedAt": { "type": "string", "minLength": 1 },
+          "attempt": { "type": "integer", "minimum": 1 },
+          "chainId": { "type": "integer", "minimum": 1 },
+          "txHash": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+          "receipt": { "$ref": "#/definitions/assetTransferReceipt" },
+          "output": { "type": "object" },
+          "error": { "$ref": "#/definitions/assetTransferExecutionError" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["assetTransferResult"],
+            "properties": {
+              "assetTransferResult": { "$ref": "#/definitions/assetTransferResult" }
+            }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
       "name": "vault_health_check",
       "description": "Read vault health/state snapshot at a specific block (or latest).",
       "inputSchema": {
@@ -1451,6 +1488,50 @@
         "policyCheck": { "$ref": "#/definitions/policyCheckResult" },
         "simulateExecuteInput": { "$ref": "#/definitions/executeBaseInput" },
         "prepareExecuteInput": { "$ref": "#/definitions/executeBaseInput" }
+      }
+    },
+    "assetTransferExecutionStatus": {
+      "type": "string",
+      "enum": ["pending", "submitted", "confirmed", "failed", "skipped"]
+    },
+    "assetTransferExecutionError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "message": { "type": "string", "minLength": 1 },
+        "retriable": { "type": "boolean" },
+        "details": { "type": "object" }
+      }
+    },
+    "assetTransferReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["blockNumber"],
+      "properties": {
+        "blockNumber": { "type": "string", "pattern": "^[0-9]+$" },
+        "blockHash": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+        "confirmations": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "assetTransferResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "summary", "updatedAt", "attempt", "plan"],
+      "properties": {
+        "status": { "$ref": "#/definitions/assetTransferExecutionStatus" },
+        "summary": { "type": "string", "minLength": 1 },
+        "updatedAt": { "type": "string", "minLength": 1 },
+        "submittedAt": { "type": "string", "minLength": 1 },
+        "completedAt": { "type": "string", "minLength": 1 },
+        "attempt": { "type": "integer", "minimum": 1 },
+        "chainId": { "type": "integer", "minimum": 1 },
+        "txHash": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+        "receipt": { "$ref": "#/definitions/assetTransferReceipt" },
+        "output": { "type": "object" },
+        "error": { "$ref": "#/definitions/assetTransferExecutionError" },
+        "plan": { "$ref": "#/definitions/assetTransferPlanResult" }
       }
     },
     "fundAndActionPlanResult": {

@@ -136,6 +136,18 @@ export {
 } from "./assetTransfer.js";
 
 export {
+  AssetTransferResultError,
+  createAssetTransferResult,
+  type AssetTransferExecutionStatus,
+  type AssetTransferExecutionError,
+  type AssetTransferReceipt,
+  type CreateAssetTransferResultInput,
+  type CreateAssetTransferResultOutput,
+  type AssetTransferResult,
+  type AssetTransferResultErrorCode
+} from "./assetTransferResult.js";
+
+export {
   prepareExecuteTx,
   simulateExecuteVault,
   type VaultExecuteBaseInput,

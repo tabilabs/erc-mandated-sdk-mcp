@@ -13,6 +13,7 @@ const DEFAULT_SDK_ADAPTER = {
   createFundAndActionExecutionSession: sdk.createFundAndActionExecutionSession,
   applyFundAndActionExecutionEvent: sdk.applyFundAndActionExecutionEvent,
   createFollowUpActionResult: sdk.createFollowUpActionResult,
+  createAssetTransferResult: sdk.createAssetTransferResult,
   checkAssetTransferAgainstFundingPolicy: sdk.checkAssetTransferAgainstFundingPolicy,
   buildAssetTransferPlanFromAccountContext: sdk.buildAssetTransferPlanFromAccountContext,
   healthCheckVault: sdk.healthCheckVault,

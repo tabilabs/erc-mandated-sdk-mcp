@@ -632,6 +632,121 @@ test("vault_build_asset_transfer_plan returns JSON-safe transfer plan payload", 
   assert.doesNotThrow(() => JSON.stringify(result.structuredContent));
 });
 
+test("vault_asset_transfer_result_create returns normalized confirmed envelope", async (t) => {
+  const { client, server } = await createConnectedClient();
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const planResult = await client.callTool({
+    name: "vault_build_asset_transfer_plan",
+    arguments: {
+      chainId: 97,
+      vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+      executor: "0x1111111111111111111111111111111111111111",
+      tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+      to: "0x2222222222222222222222222222222222222222",
+      amountRaw: "1000000",
+      nonce: "1",
+      deadline: "9999999999",
+      authorityEpoch: "1",
+      allowedAdaptersRoot: "0x" + "00".repeat(32),
+      maxDrawdownBps: "10000",
+      maxCumulativeDrawdownBps: "10000",
+      symbol: "USDT",
+      decimals: 6
+    }
+  });
+
+  const planStructured = planResult.structuredContent as {
+    result?: unknown;
+  };
+
+  const result = await client.callTool({
+    name: "vault_asset_transfer_result_create",
+    arguments: {
+      assetTransferPlan: planStructured.result,
+      status: "confirmed",
+      updatedAt: "2026-03-09T02:00:00.000Z",
+      submittedAt: "2026-03-09T01:59:00.000Z",
+      chainId: 97,
+      txHash: "0x" + "12".repeat(32),
+      receipt: {
+        blockNumber: "123456",
+        blockHash: "0x" + "34".repeat(32),
+        confirmations: 3
+      }
+    }
+  });
+
+  const structured = result.structuredContent as {
+    result?: {
+      assetTransferResult?: {
+        status?: string;
+        completedAt?: string;
+        txHash?: string;
+        receipt?: { blockNumber?: string };
+      };
+    };
+  };
+
+  assert.equal(result.isError, false);
+  assert.equal(structured.result?.assetTransferResult?.status, "confirmed");
+  assert.equal(structured.result?.assetTransferResult?.completedAt, "2026-03-09T02:00:00.000Z");
+  assert.equal(structured.result?.assetTransferResult?.txHash, "0x" + "12".repeat(32));
+  assert.equal(structured.result?.assetTransferResult?.receipt?.blockNumber, "123456");
+});
+
+test("vault_asset_transfer_result_create rejects submitted envelope without txHash", async (t) => {
+  const { client, server } = await createConnectedClient();
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const planResult = await client.callTool({
+    name: "vault_build_asset_transfer_plan",
+    arguments: {
+      chainId: 97,
+      vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+      executor: "0x1111111111111111111111111111111111111111",
+      tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+      to: "0x2222222222222222222222222222222222222222",
+      amountRaw: "1000000",
+      nonce: "1",
+      deadline: "9999999999",
+      authorityEpoch: "1",
+      allowedAdaptersRoot: "0x" + "00".repeat(32),
+      maxDrawdownBps: "10000",
+      maxCumulativeDrawdownBps: "10000"
+    }
+  });
+
+  const planStructured = planResult.structuredContent as {
+    result?: unknown;
+  };
+
+  const result = await client.callTool({
+    name: "vault_asset_transfer_result_create",
+    arguments: {
+      assetTransferPlan: planStructured.result,
+      status: "submitted",
+      updatedAt: "2026-03-09T02:00:00.000Z"
+    }
+  });
+
+  const structured = result.structuredContent as {
+    error?: { code?: string; message?: string };
+  };
+
+  assert.equal(result.isError, true);
+  assert.equal(structured.error?.code, "SUBMITTED_RESULT_REQUIRES_TX_HASH");
+  assert.ok((structured.error?.message ?? "").includes("txHash"));
+});
+
 test("vault_simulate_asset_transfer composes plan builder with simulateExecuteVault", async (t) => {
   const transferAdapter = {
     buildAssetTransferPlan: async () => ({
