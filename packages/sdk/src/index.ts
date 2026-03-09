@@ -50,6 +50,7 @@ export {
 export {
   FundAndActionSessionError,
   createFundAndActionExecutionSession,
+  normalizeFundAndActionExecutionSession,
   applyFundAndActionExecutionEvent,
   type FundAndActionSessionErrorCode,
   type FundAndActionExecutionSessionStatus,
@@ -61,10 +62,27 @@ export {
   type FundAndActionExecutionSession,
   type CreateFundAndActionExecutionSessionInput,
   type CreateFundAndActionExecutionSessionOutput,
+  type NormalizeFundAndActionExecutionSessionInput,
+  type NormalizeFundAndActionExecutionSessionOutput,
   type FundAndActionExecutionEvent,
   type ApplyFundAndActionExecutionEventInput,
   type ApplyFundAndActionExecutionEventOutput
 } from "./fundAndActionSession.js";
+
+export {
+  FundAndActionDriverError,
+  resolveFundAndActionExecutionTask,
+  executeFundAndActionExecutionTask,
+  type FundAndActionDriverErrorCode,
+  type FundAndActionExecutionTask,
+  type ResolveFundAndActionExecutionTaskInput,
+  type ResolveFundAndActionExecutionTaskOutput,
+  type ExecuteFundAndActionExecutionTaskContext,
+  type FundAndActionFundingExecutorAdapter,
+  type FundAndActionFollowUpExecutorAdapter,
+  type ExecuteFundAndActionExecutionTaskInput,
+  type ExecuteFundAndActionExecutionTaskOutput
+} from "./fundAndActionDriver.js";
 
 export {
   FollowUpActionError,

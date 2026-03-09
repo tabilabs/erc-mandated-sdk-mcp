@@ -239,6 +239,34 @@
       }
     },
     {
+      "name": "agent_fund_and_action_session_next_step",
+      "description": "Resolve the normalized next execution task for a fund-and-action session without invoking external executors.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["session"],
+        "properties": {
+          "session": { "$ref": "#/definitions/fundAndActionExecutionSession" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["session", "task"],
+            "properties": {
+              "session": { "$ref": "#/definitions/fundAndActionExecutionSession" },
+              "task": { "$ref": "#/definitions/fundAndActionExecutionTask" }
+            }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
       "name": "agent_follow_up_action_result_create",
       "description": "Normalize a follow-up action execution result envelope without invoking the real downstream executor.",
       "inputSchema": {
@@ -1343,6 +1371,88 @@
             "required": ["followUpActionResult"],
             "properties": {
               "followUpActionResult": { "$ref": "#/definitions/followUpActionResult" }
+            }
+          }
+        }
+      ]
+    },
+    "fundAndActionExecutionTask": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "summary"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "submitFunding",
+            "pollFundingResult",
+            "submitFollowUp",
+            "pollFollowUpResult",
+            "completed"
+          ]
+        },
+        "summary": { "type": "string", "minLength": 1 },
+        "fundingPlan": { "$ref": "#/definitions/assetTransferExecutionPlanWithContextResult" },
+        "assetTransferResult": { "$ref": "#/definitions/assetTransferResult" },
+        "followUpActionPlan": { "$ref": "#/definitions/followUpActionPlan" },
+        "reference": { "$ref": "#/definitions/followUpActionExecutionReference" },
+        "status": { "$ref": "#/definitions/fundAndActionExecutionSessionStatus" },
+        "result": { "$ref": "#/definitions/followUpActionResult" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": { "const": "submitFunding" }
+            },
+            "required": ["kind"]
+          },
+          "then": {
+            "required": ["fundingPlan"],
+            "properties": {
+              "fundingPlan": { "$ref": "#/definitions/assetTransferExecutionPlanWithContextResult" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": { "const": "pollFundingResult" }
+            },
+            "required": ["kind"]
+          },
+          "then": {
+            "required": ["assetTransferResult"],
+            "properties": {
+              "assetTransferResult": { "$ref": "#/definitions/assetTransferResult" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": { "const": "submitFollowUp" }
+            },
+            "required": ["kind"]
+          },
+          "then": {
+            "required": ["followUpActionPlan"],
+            "properties": {
+              "followUpActionPlan": { "$ref": "#/definitions/followUpActionPlan" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": { "const": "completed" }
+            },
+            "required": ["kind"]
+          },
+          "then": {
+            "required": ["status"],
+            "properties": {
+              "status": { "$ref": "#/definitions/fundAndActionExecutionSessionStatus" }
             }
           }
         }

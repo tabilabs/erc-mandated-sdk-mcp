@@ -93,6 +93,16 @@ export interface ApplyFundAndActionExecutionEventOutput {
   };
 }
 
+export interface NormalizeFundAndActionExecutionSessionInput {
+  session: FundAndActionExecutionSession;
+}
+
+export interface NormalizeFundAndActionExecutionSessionOutput {
+  result: {
+    session: FundAndActionExecutionSession;
+  };
+}
+
 export type FundAndActionSessionErrorCode =
   | "INVALID_SESSION_ID"
   | "INVALID_SESSION_TIMESTAMP"
@@ -804,6 +814,16 @@ export function createFundAndActionExecutionSession(
           updatedAt: createdAt
         }
       }
+    }
+  };
+}
+
+export function normalizeFundAndActionExecutionSession(
+  input: NormalizeFundAndActionExecutionSessionInput
+): NormalizeFundAndActionExecutionSessionOutput {
+  return {
+    result: {
+      session: normalizeSession(input.session)
     }
   };
 }
