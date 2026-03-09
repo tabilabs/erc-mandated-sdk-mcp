@@ -41,6 +41,11 @@ export async function handleToolCall(toolName: string, args: JsonObject, sdk: Sd
         return (await sdk.buildFundAndActionPlan(input)) as unknown as JsonResult;
       }
 
+      case "agent_follow_up_action_result_create": {
+        const input = args as unknown as ToolInput<"createFollowUpActionResult">;
+        return (await sdk.createFollowUpActionResult(input)) as unknown as JsonResult;
+      }
+
       case "vault_check_asset_transfer_policy": {
         const input = args as unknown as ToolInput<"checkAssetTransferAgainstFundingPolicy">;
         return (await sdk.checkAssetTransferAgainstFundingPolicy(input)) as unknown as JsonResult;

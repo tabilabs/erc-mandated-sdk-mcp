@@ -50,12 +50,19 @@ export {
 export {
   FollowUpActionError,
   buildFollowUpActionPlan,
+  createFollowUpActionResult,
   type GenericFollowUpActionIntent,
   type PredictCreateOrderPayload,
   type PredictCreateOrderActionIntent,
   type FollowUpActionIntent,
   type FollowUpActionPlan,
-  type FollowUpActionErrorCode
+  type FollowUpActionErrorCode,
+  type FollowUpActionExecutionStatus,
+  type FollowUpActionExecutionReference,
+  type FollowUpActionExecutionError,
+  type CreateFollowUpActionResultInput,
+  type CreateFollowUpActionResultOutput,
+  type FollowUpActionResult
 } from "./followUpAction.js";
 
 export {

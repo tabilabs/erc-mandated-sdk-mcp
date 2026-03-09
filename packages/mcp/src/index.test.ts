@@ -1917,3 +1917,90 @@ test("agent_build_fund_and_action_plan rejects stale balance snapshot at SDK lay
   assert.equal(structured.error?.code, "STALE_BALANCE_SNAPSHOT");
   assert.ok((structured.error?.message ?? "").includes("stale"));
 });
+
+test("agent_follow_up_action_result_create returns normalized succeeded envelope", async (t) => {
+  const { client, server } = await createConnectedClient();
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "agent_follow_up_action_result_create",
+    arguments: {
+      followUpActionPlan: {
+        kind: "predict.createOrder",
+        target: "predict-order-engine",
+        executionMode: "offchain-api",
+        summary: "Create predict order for market btc-1h-up using 500000 units of 0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E.",
+        assetRequirement: {
+          tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+          amountRaw: "500000"
+        },
+        payload: {
+          marketId: "btc-1h-up",
+          collateralTokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+          collateralAmountRaw: "500000",
+          orderSide: "buy"
+        }
+      },
+      status: "succeeded",
+      updatedAt: "2026-03-09T01:00:00.000Z",
+      reference: {
+        type: "orderId",
+        value: "pred-ord-1"
+      },
+      output: {
+        accepted: true
+      }
+    }
+  });
+
+  const structured = result.structuredContent as {
+    result?: {
+      followUpActionResult?: {
+        status?: string;
+        completedAt?: string;
+        reference?: { value?: string };
+        summary?: string;
+      };
+    };
+  };
+
+  assert.equal(result.isError, false);
+  assert.equal(structured.result?.followUpActionResult?.status, "succeeded");
+  assert.equal(structured.result?.followUpActionResult?.completedAt, "2026-03-09T01:00:00.000Z");
+  assert.equal(structured.result?.followUpActionResult?.reference?.value, "pred-ord-1");
+  assert.ok((structured.result?.followUpActionResult?.summary ?? "").includes("Succeeded:"));
+});
+
+test("agent_follow_up_action_result_create rejects failed envelope without error", async (t) => {
+  const { client, server } = await createConnectedClient();
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "agent_follow_up_action_result_create",
+    arguments: {
+      followUpActionPlan: {
+        kind: "custom.notify",
+        executionMode: "custom",
+        summary: "Run follow-up action: custom.notify."
+      },
+      status: "failed",
+      updatedAt: "2026-03-09T01:00:00.000Z"
+    }
+  });
+
+  const structured = result.structuredContent as {
+    error?: { code?: string; message?: string };
+  };
+
+  assert.equal(result.isError, true);
+  assert.equal(structured.error?.code, "FAILED_RESULT_REQUIRES_ERROR");
+  assert.ok((structured.error?.message ?? "").includes("requires error"));
+});

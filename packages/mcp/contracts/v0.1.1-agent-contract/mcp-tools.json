@@ -182,6 +182,41 @@
       }
     },
     {
+      "name": "agent_follow_up_action_result_create",
+      "description": "Normalize a follow-up action execution result envelope without invoking the real downstream executor.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["followUpActionPlan", "status"],
+        "properties": {
+          "followUpActionPlan": { "$ref": "#/definitions/followUpActionPlan" },
+          "status": { "$ref": "#/definitions/followUpActionExecutionStatus" },
+          "updatedAt": { "type": "string", "minLength": 1 },
+          "startedAt": { "type": "string", "minLength": 1 },
+          "completedAt": { "type": "string", "minLength": 1 },
+          "attempt": { "type": "integer", "minimum": 1 },
+          "reference": { "$ref": "#/definitions/followUpActionExecutionReference" },
+          "output": { "type": "object" },
+          "error": { "$ref": "#/definitions/followUpActionExecutionError" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["followUpActionResult"],
+            "properties": {
+              "followUpActionResult": { "$ref": "#/definitions/followUpActionResult" }
+            }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
       "name": "vault_health_check",
       "description": "Read vault health/state snapshot at a specific block (or latest).",
       "inputSchema": {
@@ -1030,6 +1065,50 @@
           }
         },
         "payload": { "type": "object" }
+      }
+    },
+    "followUpActionExecutionStatus": {
+      "type": "string",
+      "enum": ["pending", "submitted", "succeeded", "failed", "skipped"]
+    },
+    "followUpActionExecutionReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "value"],
+      "properties": {
+        "type": { "type": "string", "enum": ["requestId", "orderId", "txHash", "custom"] },
+        "value": { "type": "string", "minLength": 1, "maxLength": 256 }
+      }
+    },
+    "followUpActionExecutionError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "message": { "type": "string", "minLength": 1 },
+        "retriable": { "type": "boolean" },
+        "details": { "type": "object" }
+      }
+    },
+    "followUpActionResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "executionMode", "status", "summary", "updatedAt", "attempt", "plan"],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "target": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "executionMode": { "type": "string", "enum": ["offchain-api", "custom"] },
+        "status": { "$ref": "#/definitions/followUpActionExecutionStatus" },
+        "summary": { "type": "string", "minLength": 1 },
+        "updatedAt": { "type": "string", "minLength": 1 },
+        "startedAt": { "type": "string", "minLength": 1 },
+        "completedAt": { "type": "string", "minLength": 1 },
+        "attempt": { "type": "integer", "minimum": 1 },
+        "reference": { "$ref": "#/definitions/followUpActionExecutionReference" },
+        "output": { "type": "object" },
+        "error": { "$ref": "#/definitions/followUpActionExecutionError" },
+        "plan": { "$ref": "#/definitions/followUpActionPlan" }
       }
     },
     "fundAndActionFundingContext": {
