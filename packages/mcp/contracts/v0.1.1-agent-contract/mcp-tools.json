@@ -281,7 +281,7 @@
         "additionalProperties": false,
         "required": ["assetTransferPlan", "status"],
         "properties": {
-          "assetTransferPlan": { "$ref": "#/definitions/assetTransferPlanResult" },
+          "assetTransferPlan": { "$ref": "#/definitions/assetTransferResultPlan" },
           "status": { "$ref": "#/definitions/assetTransferExecutionStatus" },
           "updatedAt": { "type": "string", "minLength": 1 },
           "submittedAt": { "type": "string", "minLength": 1 },
@@ -1230,8 +1230,7 @@
         "status": { "$ref": "#/definitions/fundAndActionFundingStepStatus" },
         "summary": { "type": "string", "minLength": 1 },
         "updatedAt": { "type": "string", "minLength": 1 },
-        "reference": { "$ref": "#/definitions/followUpActionExecutionReference" },
-        "error": { "$ref": "#/definitions/followUpActionExecutionError" }
+        "result": { "$ref": "#/definitions/assetTransferResult" }
       }
     },
     "fundAndActionFollowUpStepExecution": {
@@ -1287,7 +1286,7 @@
         },
         "updatedAt": { "type": "string", "minLength": 1 },
         "reference": { "$ref": "#/definitions/followUpActionExecutionReference" },
-        "error": { "$ref": "#/definitions/followUpActionExecutionError" },
+        "assetTransferResult": { "$ref": "#/definitions/assetTransferResult" },
         "followUpActionResult": { "$ref": "#/definitions/followUpActionResult" }
       },
       "allOf": [
@@ -1299,9 +1298,23 @@
             "required": ["type"]
           },
           "then": {
-            "required": ["reference"],
+            "required": ["assetTransferResult"],
             "properties": {
-              "reference": { "$ref": "#/definitions/followUpActionExecutionReference" }
+              "assetTransferResult": { "$ref": "#/definitions/assetTransferResult" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": { "const": "fundingConfirmed" }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "required": ["assetTransferResult"],
+            "properties": {
+              "assetTransferResult": { "$ref": "#/definitions/assetTransferResult" }
             }
           }
         },
@@ -1313,9 +1326,9 @@
             "required": ["type"]
           },
           "then": {
-            "required": ["error"],
+            "required": ["assetTransferResult"],
             "properties": {
-              "error": { "$ref": "#/definitions/followUpActionExecutionError" }
+              "assetTransferResult": { "$ref": "#/definitions/assetTransferResult" }
             }
           }
         },
@@ -1531,8 +1544,14 @@
         "receipt": { "$ref": "#/definitions/assetTransferReceipt" },
         "output": { "type": "object" },
         "error": { "$ref": "#/definitions/assetTransferExecutionError" },
-        "plan": { "$ref": "#/definitions/assetTransferPlanResult" }
+        "plan": { "$ref": "#/definitions/assetTransferResultPlan" }
       }
+    },
+    "assetTransferResultPlan": {
+      "oneOf": [
+        { "$ref": "#/definitions/assetTransferPlanResult" },
+        { "$ref": "#/definitions/assetTransferExecutionPlanWithContextResult" }
+      ]
     },
     "fundAndActionPlanResult": {
       "type": "object",

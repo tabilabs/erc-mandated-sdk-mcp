@@ -10,6 +10,7 @@ import {
   applyFundAndActionExecutionEvent,
   createFundAndActionExecutionSession
 } from "./fundAndActionSession.js";
+import { createAssetTransferResult } from "./assetTransferResult.js";
 import { createFollowUpActionResult } from "./followUpAction.js";
 
 const accountContext = createAgentAccountContext({
@@ -75,6 +76,7 @@ test("createFundAndActionExecutionSession starts from funding when funding is re
   assert.equal(session.status, "pendingFunding");
   assert.equal(session.currentStep, "fundTargetAccount");
   assert.equal(session.fundingStep.status, "pending");
+  assert.equal(session.fundingStep.result, undefined);
   assert.equal(session.followUpStep.status, "pending");
 });
 
@@ -88,6 +90,7 @@ test("createFundAndActionExecutionSession starts from follow-up when funding is 
   assert.equal(session.status, "pendingFollowUp");
   assert.equal(session.currentStep, "followUpAction");
   assert.equal(session.fundingStep.status, "skipped");
+  assert.equal(session.fundingStep.result, undefined);
 });
 
 test("applyFundAndActionExecutionEvent advances through funding and follow-up success", async () => {
@@ -98,23 +101,42 @@ test("applyFundAndActionExecutionEvent advances through funding and follow-up su
     createdAt: "2026-03-09T01:00:00.000Z"
   }).result.session;
 
+  const fundingSubmittedResult = createAssetTransferResult({
+    assetTransferPlan: plan.fundingPlan!,
+    status: "submitted",
+    updatedAt: "2026-03-09T01:01:00.000Z",
+    submittedAt: "2026-03-09T01:01:00.000Z",
+    chainId: 97,
+    txHash: ("0x" + "ab".repeat(32)) as Hex
+  }).result.assetTransferResult;
+
   const fundingSubmitted = applyFundAndActionExecutionEvent({
     session: created,
     event: {
       type: "fundingSubmitted",
-      updatedAt: "2026-03-09T01:01:00.000Z",
-      reference: {
-        type: "txHash",
-        value: "0xabc123"
-      }
+      assetTransferResult: fundingSubmittedResult
     }
   }).result.session;
+
+  const fundingConfirmedResult = createAssetTransferResult({
+    assetTransferPlan: plan.fundingPlan!,
+    status: "confirmed",
+    updatedAt: "2026-03-09T01:02:00.000Z",
+    submittedAt: "2026-03-09T01:01:00.000Z",
+    chainId: 97,
+    txHash: ("0x" + "ab".repeat(32)) as Hex,
+    receipt: {
+      blockNumber: "123456",
+      blockHash: ("0x" + "cd".repeat(32)) as Hex,
+      confirmations: 2
+    }
+  }).result.assetTransferResult;
 
   const fundingConfirmed = applyFundAndActionExecutionEvent({
     session: fundingSubmitted,
     event: {
       type: "fundingConfirmed",
-      updatedAt: "2026-03-09T01:02:00.000Z"
+      assetTransferResult: fundingConfirmedResult
     }
   }).result.session;
 
@@ -149,7 +171,11 @@ test("applyFundAndActionExecutionEvent advances through funding and follow-up su
   }).result.session;
 
   assert.equal(fundingSubmitted.fundingStep.status, "submitted");
+  assert.equal(fundingSubmitted.fundingStep.result?.status, "submitted");
+  assert.equal(fundingSubmitted.fundingStep.result?.txHash, ("0x" + "ab".repeat(32)) as Hex);
   assert.equal(fundingConfirmed.status, "pendingFollowUp");
+  assert.equal(fundingConfirmed.fundingStep.result?.status, "confirmed");
+  assert.equal(fundingConfirmed.fundingStep.result?.receipt?.blockNumber, "123456");
   assert.equal(followUpSubmitted.followUpStep.status, "submitted");
   assert.equal(completed.status, "succeeded");
   assert.equal(completed.currentStep, "none");
@@ -176,6 +202,41 @@ test("applyFundAndActionExecutionEvent rejects follow-up submission before fundi
     (error: unknown) => {
       assert.ok(error instanceof FundAndActionSessionError);
       assert.equal(error.code, "INVALID_EVENT_TRANSITION");
+      return true;
+    }
+  );
+});
+
+test("applyFundAndActionExecutionEvent rejects funding result built from mismatched transfer plan", async () => {
+  const requiredPlan = await buildPlan("100000");
+  const otherPlan = await buildPlan("200000");
+  const session = createFundAndActionExecutionSession({
+    fundAndActionPlan: requiredPlan,
+    createdAt: "2026-03-09T01:00:00.000Z"
+  }).result.session;
+
+  const mismatchedFundingResult = createAssetTransferResult({
+    assetTransferPlan: otherPlan.fundingPlan!,
+    status: "submitted",
+    updatedAt: "2026-03-09T01:01:00.000Z",
+    submittedAt: "2026-03-09T01:01:00.000Z",
+    chainId: 97,
+    txHash: ("0x" + "ab".repeat(32)) as Hex
+  }).result.assetTransferResult;
+
+  assert.throws(
+    () => {
+      applyFundAndActionExecutionEvent({
+        session,
+        event: {
+          type: "fundingSubmitted",
+          assetTransferResult: mismatchedFundingResult
+        }
+      });
+    },
+    (error: unknown) => {
+      assert.ok(error instanceof FundAndActionSessionError);
+      assert.equal(error.code, "FUNDING_RESULT_MISMATCH");
       return true;
     }
   );

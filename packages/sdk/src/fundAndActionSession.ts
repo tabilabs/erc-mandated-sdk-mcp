@@ -1,7 +1,7 @@
 import { ErcMandatedSdkError } from "./errors.js";
 import type { FundAndActionPlanOutput } from "./fundAndAction.js";
+import type { AssetTransferResult } from "./assetTransferResult.js";
 import {
-  type FollowUpActionExecutionError,
   type FollowUpActionExecutionReference,
   type FollowUpActionResult,
   buildFollowUpActionPlan
@@ -25,8 +25,7 @@ export interface FundAndActionFundingStepExecution {
   status: FundAndActionFundingStepStatus;
   summary: string;
   updatedAt: string;
-  reference?: FollowUpActionExecutionReference;
-  error?: FollowUpActionExecutionError;
+  result?: AssetTransferResult;
 }
 
 export interface FundAndActionFollowUpStepExecution {
@@ -63,19 +62,15 @@ export interface CreateFundAndActionExecutionSessionOutput {
 export type FundAndActionExecutionEvent =
   | {
       type: "fundingSubmitted";
-      updatedAt?: string;
-      reference: FollowUpActionExecutionReference;
+      assetTransferResult: AssetTransferResult;
     }
   | {
       type: "fundingConfirmed";
-      updatedAt?: string;
-      reference?: FollowUpActionExecutionReference;
+      assetTransferResult: AssetTransferResult;
     }
   | {
       type: "fundingFailed";
-      updatedAt?: string;
-      reference?: FollowUpActionExecutionReference;
-      error: FollowUpActionExecutionError;
+      assetTransferResult: AssetTransferResult;
     }
   | {
       type: "followUpSubmitted";
@@ -110,6 +105,7 @@ export type FundAndActionSessionErrorCode =
   | "INVALID_EVENT_TRANSITION"
   | "TERMINAL_SESSION"
   | "MISSING_FUNDING_PLAN"
+  | "FUNDING_RESULT_MISMATCH"
   | "FOLLOW_UP_RESULT_MISMATCH";
 
 export class FundAndActionSessionError extends ErcMandatedSdkError {
@@ -123,12 +119,13 @@ export class FundAndActionSessionError extends ErcMandatedSdkError {
     | "fundingStep.required"
     | "fundingStep.status"
     | "fundingStep.updatedAt"
+    | "fundingStep.result"
     | "followUpStep.status"
     | "followUpStep.updatedAt"
     | "followUpStep.result"
     | "event.type"
     | "event.reference"
-    | "event.error"
+    | "event.assetTransferResult"
     | "event.followUpActionResult";
 
   constructor(
@@ -144,12 +141,13 @@ export class FundAndActionSessionError extends ErcMandatedSdkError {
         | "fundingStep.required"
         | "fundingStep.status"
         | "fundingStep.updatedAt"
+        | "fundingStep.result"
         | "followUpStep.status"
         | "followUpStep.updatedAt"
         | "followUpStep.result"
         | "event.type"
         | "event.reference"
-        | "event.error"
+        | "event.assetTransferResult"
         | "event.followUpActionResult";
       details?: Record<string, unknown>;
     }
@@ -327,35 +325,6 @@ function normalizeReference(
   };
 }
 
-function normalizeError(error: FollowUpActionExecutionError | undefined): FollowUpActionExecutionError | undefined {
-  if (!error) {
-    return undefined;
-  }
-
-  if (typeof error.code !== "string" || error.code.trim().length === 0) {
-    throw new FundAndActionSessionError("Invalid event error.code.", {
-      code: "INVALID_EVENT_TRANSITION",
-      field: "event.error",
-      details: { error }
-    });
-  }
-
-  if (typeof error.message !== "string" || error.message.trim().length === 0) {
-    throw new FundAndActionSessionError("Invalid event error.message.", {
-      code: "INVALID_EVENT_TRANSITION",
-      field: "event.error",
-      details: { error }
-    });
-  }
-
-  return {
-    code: error.code,
-    message: error.message,
-    ...(error.retriable !== undefined ? { retriable: error.retriable } : {}),
-    ...(error.details ? { details: error.details } : {})
-  };
-}
-
 function assertSessionInvariant(
   condition: boolean,
   field:
@@ -363,6 +332,7 @@ function assertSessionInvariant(
     | "currentStep"
     | "fundingStep.required"
     | "fundingStep.status"
+    | "fundingStep.result"
     | "followUpStep.status"
     | "followUpStep.result",
   message: string,
@@ -406,10 +376,7 @@ function normalizeSession(session: FundAndActionExecutionSession): FundAndAction
       required: session.fundingStep.required,
       status: normalizeFundingStepStatus(session.fundingStep.status),
       updatedAt: normalizeIsoTimestamp(session.fundingStep.updatedAt, "updatedAt"),
-      ...(session.fundingStep.reference
-        ? { reference: normalizeReference(session.fundingStep.reference) }
-        : {}),
-      ...(session.fundingStep.error ? { error: normalizeError(session.fundingStep.error) } : {})
+      ...(session.fundingStep.result ? { result: session.fundingStep.result } : {})
     },
     followUpStep: {
       ...session.followUpStep,
@@ -435,6 +402,68 @@ function normalizeSession(session: FundAndActionExecutionSession): FundAndAction
   validateSessionState(normalized);
 
   return normalized;
+}
+
+function validateAssetTransferResultMatchesSession(
+  session: FundAndActionExecutionSession,
+  assetTransferResult: AssetTransferResult
+): void {
+  const fundingPlan = session.fundAndActionPlan.fundingPlan;
+
+  if (!fundingPlan) {
+    throw new FundAndActionSessionError("fundingStep.result requires fundingPlan in session.", {
+      code: "MISSING_FUNDING_PLAN",
+      field: "fundingStep.result",
+      details: {
+        fundingRequired: session.fundAndActionPlan.fundingRequired
+      }
+    });
+  }
+
+  const resultPlan = assetTransferResult.plan;
+  const plansMatch =
+    resultPlan.action.adapter === fundingPlan.action.adapter &&
+    resultPlan.action.value === fundingPlan.action.value &&
+    resultPlan.action.data === fundingPlan.action.data &&
+    resultPlan.erc20Call.to === fundingPlan.erc20Call.to &&
+    resultPlan.erc20Call.data === fundingPlan.erc20Call.data &&
+    resultPlan.erc20Call.value === fundingPlan.erc20Call.value &&
+    resultPlan.humanReadableSummary.kind === fundingPlan.humanReadableSummary.kind &&
+    resultPlan.humanReadableSummary.tokenAddress === fundingPlan.humanReadableSummary.tokenAddress &&
+    resultPlan.humanReadableSummary.to === fundingPlan.humanReadableSummary.to &&
+    resultPlan.humanReadableSummary.amountRaw === fundingPlan.humanReadableSummary.amountRaw &&
+    resultPlan.humanReadableSummary.symbol === fundingPlan.humanReadableSummary.symbol &&
+    resultPlan.humanReadableSummary.decimals === fundingPlan.humanReadableSummary.decimals &&
+    resultPlan.signRequest.mandateHash === fundingPlan.signRequest.mandateHash &&
+    resultPlan.signRequest.actionsDigest === fundingPlan.signRequest.actionsDigest &&
+    resultPlan.signRequest.extensionsHash === fundingPlan.signRequest.extensionsHash &&
+    resultPlan.signRequest.mandate.vault === fundingPlan.signRequest.mandate.vault &&
+    resultPlan.signRequest.mandate.executor === fundingPlan.signRequest.mandate.executor &&
+    resultPlan.signRequest.mandate.nonce === fundingPlan.signRequest.mandate.nonce &&
+    resultPlan.signRequest.mandate.deadline === fundingPlan.signRequest.mandate.deadline &&
+    resultPlan.signRequest.mandate.authorityEpoch === fundingPlan.signRequest.mandate.authorityEpoch &&
+    resultPlan.signRequest.mandate.allowedAdaptersRoot === fundingPlan.signRequest.mandate.allowedAdaptersRoot &&
+    resultPlan.signRequest.mandate.maxDrawdownBps === fundingPlan.signRequest.mandate.maxDrawdownBps &&
+    resultPlan.signRequest.mandate.maxCumulativeDrawdownBps === fundingPlan.signRequest.mandate.maxCumulativeDrawdownBps &&
+    resultPlan.signRequest.mandate.payloadDigest === fundingPlan.signRequest.mandate.payloadDigest &&
+    resultPlan.signRequest.mandate.extensionsHash === fundingPlan.signRequest.mandate.extensionsHash;
+
+  if (!plansMatch) {
+    throw new FundAndActionSessionError("assetTransferResult does not match session funding plan.", {
+      code: "FUNDING_RESULT_MISMATCH",
+      field: "event.assetTransferResult",
+      details: {
+        resultTokenAddress: resultPlan.humanReadableSummary.tokenAddress,
+        planTokenAddress: fundingPlan.humanReadableSummary.tokenAddress,
+        resultRecipient: resultPlan.humanReadableSummary.to,
+        planRecipient: fundingPlan.humanReadableSummary.to,
+        resultAmountRaw: resultPlan.humanReadableSummary.amountRaw,
+        planAmountRaw: fundingPlan.humanReadableSummary.amountRaw,
+        resultMandateHash: resultPlan.signRequest.mandateHash,
+        planMandateHash: fundingPlan.signRequest.mandateHash
+      }
+    });
+  }
 }
 
 function validateSessionState(session: FundAndActionExecutionSession): void {
@@ -467,6 +496,27 @@ function validateSessionState(session: FundAndActionExecutionSession): void {
           fundingStepStatus: session.fundingStep.status
         }
       );
+      if (session.fundingStep.status === "pending") {
+        assertSessionInvariant(
+          session.fundingStep.result === undefined,
+          "fundingStep.result",
+          "pending fundingStep cannot already contain assetTransferResult.",
+          {
+            fundingStepStatus: session.fundingStep.status
+          }
+        );
+      } else {
+        assertSessionInvariant(
+          session.fundingStep.result?.status === "submitted",
+          "fundingStep.result",
+          "submitted fundingStep must include submitted assetTransferResult.",
+          {
+            fundingStepStatus: session.fundingStep.status,
+            resultStatus: session.fundingStep.result?.status
+          }
+        );
+        validateAssetTransferResultMatchesSession(session, session.fundingStep.result!);
+      }
       assertSessionInvariant(
         session.followUpStep.status === "pending" && session.followUpStep.result === undefined,
         "followUpStep.status",
@@ -498,6 +548,27 @@ function validateSessionState(session: FundAndActionExecutionSession): void {
           fundingStepStatus: session.fundingStep.status
         }
       );
+      if (session.fundingStep.status === "skipped") {
+        assertSessionInvariant(
+          session.fundingStep.result === undefined,
+          "fundingStep.result",
+          "Skipped fundingStep cannot include assetTransferResult.",
+          {
+            fundingStepStatus: session.fundingStep.status
+          }
+        );
+      } else {
+        assertSessionInvariant(
+          session.fundingStep.result?.status === "confirmed",
+          "fundingStep.result",
+          "Succeeded fundingStep must include confirmed assetTransferResult.",
+          {
+            fundingStepStatus: session.fundingStep.status,
+            resultStatus: session.fundingStep.result?.status
+          }
+        );
+        validateAssetTransferResultMatchesSession(session, session.fundingStep.result!);
+      }
       assertSessionInvariant(
         session.fundingStep.status === "skipped"
           ? session.fundingStep.required === false
@@ -541,6 +612,34 @@ function validateSessionState(session: FundAndActionExecutionSession): void {
           currentStep: session.currentStep
         }
       );
+      assertSessionInvariant(
+        session.fundingStep.status === "succeeded" || session.fundingStep.status === "skipped",
+        "fundingStep.status",
+        "Terminal follow-up session requires fundingStep.status succeeded or skipped.",
+        {
+          fundingStepStatus: session.fundingStep.status
+        }
+      );
+      if (session.fundingStep.status === "succeeded") {
+        assertSessionInvariant(
+          session.fundingStep.result?.status === "confirmed",
+          "fundingStep.result",
+          "Succeeded fundingStep must include confirmed assetTransferResult.",
+          {
+            resultStatus: session.fundingStep.result?.status
+          }
+        );
+        validateAssetTransferResultMatchesSession(session, session.fundingStep.result!);
+      } else {
+        assertSessionInvariant(
+          session.fundingStep.result === undefined,
+          "fundingStep.result",
+          "Skipped fundingStep cannot include assetTransferResult.",
+          {
+            fundingStepStatus: session.fundingStep.status
+          }
+        );
+      }
       assertSessionInvariant(
         session.followUpStep.status === session.status,
         "followUpStep.status",
@@ -588,13 +687,15 @@ function validateSessionState(session: FundAndActionExecutionSession): void {
 
       if (fundingFailed) {
         assertSessionInvariant(
-          session.fundingStep.error !== undefined,
-          "fundingStep.status",
-          "Failed fundingStep must include error details.",
+          session.fundingStep.result?.status === "failed",
+          "fundingStep.result",
+          "Failed fundingStep must include failed assetTransferResult.",
           {
-            status: session.status
+            status: session.status,
+            resultStatus: session.fundingStep.result?.status
           }
         );
+        validateAssetTransferResultMatchesSession(session, session.fundingStep.result!);
         assertSessionInvariant(
           session.followUpStep.status === "pending" && session.followUpStep.result === undefined,
           "followUpStep.status",
@@ -615,6 +716,26 @@ function validateSessionState(session: FundAndActionExecutionSession): void {
           fundingStepStatus: session.fundingStep.status
         }
       );
+      if (session.fundingStep.status === "succeeded") {
+        assertSessionInvariant(
+          session.fundingStep.result?.status === "confirmed",
+          "fundingStep.result",
+          "Failed follow-up session requires confirmed funding assetTransferResult when funding succeeded.",
+          {
+            resultStatus: session.fundingStep.result?.status
+          }
+        );
+        validateAssetTransferResultMatchesSession(session, session.fundingStep.result!);
+      } else {
+        assertSessionInvariant(
+          session.fundingStep.result === undefined,
+          "fundingStep.result",
+          "Skipped fundingStep cannot include assetTransferResult.",
+          {
+            fundingStepStatus: session.fundingStep.status
+          }
+        );
+      }
       assertSessionInvariant(
         session.followUpStep.result?.status === "failed",
         "followUpStep.result",
@@ -706,7 +827,19 @@ export function applyFundAndActionExecutionEvent(
         });
       }
 
-      const updatedAt = normalizeIsoTimestamp(input.event.updatedAt, "updatedAt");
+      validateAssetTransferResultMatchesSession(session, input.event.assetTransferResult);
+
+      if (input.event.assetTransferResult.status !== "submitted") {
+        throw new FundAndActionSessionError("fundingSubmitted requires submitted assetTransferResult.", {
+          code: "INVALID_EVENT_TRANSITION",
+          field: "event.assetTransferResult",
+          details: {
+            status: input.event.assetTransferResult.status
+          }
+        });
+      }
+
+      const updatedAt = normalizeIsoTimestamp(input.event.assetTransferResult.updatedAt, "updatedAt");
 
       return {
         result: {
@@ -717,7 +850,7 @@ export function applyFundAndActionExecutionEvent(
               ...session.fundingStep,
               status: "submitted",
               updatedAt,
-              reference: normalizeReference(input.event.reference)
+              result: input.event.assetTransferResult
             }
           }
         }
@@ -736,7 +869,19 @@ export function applyFundAndActionExecutionEvent(
         });
       }
 
-      const updatedAt = normalizeIsoTimestamp(input.event.updatedAt, "updatedAt");
+      validateAssetTransferResultMatchesSession(session, input.event.assetTransferResult);
+
+      if (input.event.assetTransferResult.status !== "confirmed") {
+        throw new FundAndActionSessionError("fundingConfirmed requires confirmed assetTransferResult.", {
+          code: "INVALID_EVENT_TRANSITION",
+          field: "event.assetTransferResult",
+          details: {
+            status: input.event.assetTransferResult.status
+          }
+        });
+      }
+
+      const updatedAt = normalizeIsoTimestamp(input.event.assetTransferResult.updatedAt, "updatedAt");
 
       return {
         result: {
@@ -749,7 +894,7 @@ export function applyFundAndActionExecutionEvent(
               ...session.fundingStep,
               status: "succeeded",
               updatedAt,
-              ...(input.event.reference ? { reference: normalizeReference(input.event.reference) } : {})
+              result: input.event.assetTransferResult
             },
             followUpStep: {
               ...session.followUpStep,
@@ -772,7 +917,19 @@ export function applyFundAndActionExecutionEvent(
         });
       }
 
-      const updatedAt = normalizeIsoTimestamp(input.event.updatedAt, "updatedAt");
+      validateAssetTransferResultMatchesSession(session, input.event.assetTransferResult);
+
+      if (input.event.assetTransferResult.status !== "failed") {
+        throw new FundAndActionSessionError("fundingFailed requires failed assetTransferResult.", {
+          code: "INVALID_EVENT_TRANSITION",
+          field: "event.assetTransferResult",
+          details: {
+            status: input.event.assetTransferResult.status
+          }
+        });
+      }
+
+      const updatedAt = normalizeIsoTimestamp(input.event.assetTransferResult.updatedAt, "updatedAt");
 
       return {
         result: {
@@ -785,8 +942,7 @@ export function applyFundAndActionExecutionEvent(
               ...session.fundingStep,
               status: "failed",
               updatedAt,
-              ...(input.event.reference ? { reference: normalizeReference(input.event.reference) } : {}),
-              error: normalizeError(input.event.error)
+              result: input.event.assetTransferResult
             }
           }
         }

@@ -1,5 +1,6 @@
 import { isHex, type Hex } from "viem";
 
+import type { AssetTransferPlanFromContextOutput } from "./accountContext.js";
 import type { AssetTransferPlanOutput } from "./assetTransfer.js";
 import { ErcMandatedSdkError } from "./errors.js";
 import { toBigint } from "./shared.js";
@@ -19,8 +20,12 @@ export interface AssetTransferReceipt {
   confirmations?: number;
 }
 
+export type AssetTransferPlanResultLike =
+  | AssetTransferPlanOutput["result"]
+  | AssetTransferPlanFromContextOutput["result"];
+
 export interface CreateAssetTransferResultInput {
-  assetTransferPlan: AssetTransferPlanOutput["result"];
+  assetTransferPlan: AssetTransferPlanResultLike;
   status: AssetTransferExecutionStatus;
   updatedAt?: string;
   submittedAt?: string;
@@ -45,7 +50,7 @@ export interface AssetTransferResult {
   receipt?: AssetTransferReceipt;
   output?: Record<string, unknown>;
   error?: AssetTransferExecutionError;
-  plan: AssetTransferPlanOutput["result"];
+  plan: AssetTransferPlanResultLike;
 }
 
 export interface CreateAssetTransferResultOutput {
@@ -271,7 +276,7 @@ function normalizeExecutionError(
 
 function buildResultSummary(
   status: AssetTransferExecutionStatus,
-  plan: AssetTransferPlanOutput["result"]
+  plan: AssetTransferPlanResultLike
 ): string {
   const prefix = {
     pending: "Pending",

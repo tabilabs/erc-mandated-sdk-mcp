@@ -138,6 +138,7 @@ export {
 export {
   AssetTransferResultError,
   createAssetTransferResult,
+  type AssetTransferPlanResultLike,
   type AssetTransferExecutionStatus,
   type AssetTransferExecutionError,
   type AssetTransferReceipt,

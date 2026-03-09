@@ -641,33 +641,55 @@ test("vault_asset_transfer_result_create returns normalized confirmed envelope",
   });
 
   const planResult = await client.callTool({
-    name: "vault_build_asset_transfer_plan",
+    name: "agent_build_fund_and_action_plan",
     arguments: {
-      chainId: 97,
-      vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
-      executor: "0x1111111111111111111111111111111111111111",
-      tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
-      to: "0x2222222222222222222222222222222222222222",
-      amountRaw: "1000000",
-      nonce: "1",
-      deadline: "9999999999",
-      authorityEpoch: "1",
-      allowedAdaptersRoot: "0x" + "00".repeat(32),
-      maxDrawdownBps: "10000",
-      maxCumulativeDrawdownBps: "10000",
-      symbol: "USDT",
-      decimals: 6
+      accountContext: {
+        agentId: "predict-bot-funding-envelope",
+        chainId: 97,
+        vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+        authority: "0x1111111111111111111111111111111111111111",
+        executor: "0x2222222222222222222222222222222222222222",
+        createdAt: "2026-03-09T00:00:00.000Z",
+        updatedAt: "2026-03-09T00:00:00.000Z"
+      },
+      fundingTarget: {
+        label: "predict-account",
+        recipient: "0x3333333333333333333333333333333333333333",
+        tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+        requiredAmountRaw: "1000000",
+        currentBalanceRaw: "100000",
+        balanceSnapshot: {
+          snapshotAt: "2026-03-09T00:10:00.000Z",
+          maxStalenessSeconds: 300
+        }
+      },
+      fundingContext: {
+        nonce: "2",
+        deadline: "9999999999",
+        authorityEpoch: "1",
+        allowedAdaptersRoot: "0x" + "00".repeat(32),
+        maxDrawdownBps: "10000",
+        maxCumulativeDrawdownBps: "10000",
+        policyEvaluation: {
+          now: "2026-03-09T00:12:00.000Z"
+        }
+      },
+      followUpAction: {
+        kind: "custom.notify"
+      }
     }
   });
 
   const planStructured = planResult.structuredContent as {
-    result?: unknown;
+    result?: {
+      fundingPlan?: unknown;
+    };
   };
 
   const result = await client.callTool({
     name: "vault_asset_transfer_result_create",
     arguments: {
-      assetTransferPlan: planStructured.result,
+      assetTransferPlan: planStructured.result?.fundingPlan,
       status: "confirmed",
       updatedAt: "2026-03-09T02:00:00.000Z",
       submittedAt: "2026-03-09T01:59:00.000Z",
@@ -745,6 +767,119 @@ test("vault_asset_transfer_result_create rejects submitted envelope without txHa
   assert.equal(result.isError, true);
   assert.equal(structured.error?.code, "SUBMITTED_RESULT_REQUIRES_TX_HASH");
   assert.ok((structured.error?.message ?? "").includes("txHash"));
+});
+
+test("agent_fund_and_action_session_apply_event accepts fundingSubmitted with assetTransferResult envelope", async (t) => {
+  const { client, server } = await createConnectedClient();
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const planResult = await client.callTool({
+    name: "agent_build_fund_and_action_plan",
+    arguments: {
+      accountContext: {
+        agentId: "predict-bot-session-envelope",
+        chainId: 97,
+        vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+        authority: "0x1111111111111111111111111111111111111111",
+        executor: "0x2222222222222222222222222222222222222222",
+        createdAt: "2026-03-09T00:00:00.000Z",
+        updatedAt: "2026-03-09T00:00:00.000Z"
+      },
+      fundingTarget: {
+        label: "predict-account",
+        recipient: "0x3333333333333333333333333333333333333333",
+        tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+        requiredAmountRaw: "1000000",
+        currentBalanceRaw: "100000",
+        balanceSnapshot: {
+          snapshotAt: "2026-03-09T00:10:00.000Z",
+          maxStalenessSeconds: 300
+        }
+      },
+      fundingContext: {
+        nonce: "2",
+        deadline: "9999999999",
+        authorityEpoch: "1",
+        allowedAdaptersRoot: "0x" + "00".repeat(32),
+        maxDrawdownBps: "10000",
+        maxCumulativeDrawdownBps: "10000",
+        policyEvaluation: {
+          now: "2026-03-09T00:12:00.000Z"
+        }
+      },
+      followUpAction: {
+        kind: "custom.notify"
+      }
+    }
+  });
+
+  const planStructured = planResult.structuredContent as {
+    result?: {
+      fundingPlan?: unknown;
+    };
+  };
+
+  const sessionResult = await client.callTool({
+    name: "agent_fund_and_action_session_create",
+    arguments: {
+      fundAndActionPlan: planStructured.result,
+      createdAt: "2026-03-09T01:00:00.000Z"
+    }
+  });
+
+  const fundingEnvelopeResult = await client.callTool({
+    name: "vault_asset_transfer_result_create",
+    arguments: {
+      assetTransferPlan: planStructured.result?.fundingPlan,
+      status: "submitted",
+      updatedAt: "2026-03-09T01:01:00.000Z",
+      submittedAt: "2026-03-09T01:01:00.000Z",
+      txHash: "0x" + "12".repeat(32)
+    }
+  });
+
+  const sessionStructured = sessionResult.structuredContent as {
+    result?: {
+      session?: unknown;
+    };
+  };
+
+  const fundingStructured = fundingEnvelopeResult.structuredContent as {
+    result?: {
+      assetTransferResult?: unknown;
+    };
+  };
+
+  const result = await client.callTool({
+    name: "agent_fund_and_action_session_apply_event",
+    arguments: {
+      session: sessionStructured.result?.session,
+      event: {
+        type: "fundingSubmitted",
+        assetTransferResult: fundingStructured.result?.assetTransferResult
+      }
+    }
+  });
+
+  const structured = result.structuredContent as {
+    result?: {
+      session?: {
+        fundingStep?: {
+          status?: string;
+          result?: { status?: string; txHash?: string };
+        };
+      };
+    };
+  };
+
+  assert.equal(result.isError, false);
+  assert.equal(structured.result?.session?.fundingStep?.status, "submitted");
+  assert.equal(structured.result?.session?.fundingStep?.result?.status, "submitted");
+  assert.equal(structured.result?.session?.fundingStep?.result?.txHash, "0x" + "12".repeat(32));
 });
 
 test("vault_simulate_asset_transfer composes plan builder with simulateExecuteVault", async (t) => {

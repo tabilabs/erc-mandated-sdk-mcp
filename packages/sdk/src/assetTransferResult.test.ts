@@ -3,6 +3,7 @@ import test from "node:test";
 
 import type { Address, Hex } from "viem";
 
+import { createAgentAccountContext, buildAssetTransferPlanFromAccountContext } from "./accountContext.js";
 import { buildAssetTransferPlan } from "./assetTransfer.js";
 import { createAssetTransferResult, AssetTransferResultError } from "./assetTransferResult.js";
 
@@ -108,4 +109,48 @@ test("createAssetTransferResult rejects pending result with completedAt", async 
       return true;
     }
   );
+});
+
+test("createAssetTransferResult accepts context-aware transfer plan", async () => {
+  const accountContext = createAgentAccountContext({
+    agentId: "predict-bot-session",
+    chainId: 97,
+    vault: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as Address,
+    authority: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" as Address,
+    executor: "0xcccccccccccccccccccccccccccccccccccccccc" as Address,
+    defaults: {
+      allowedAdaptersRoot: ("0x" + "11".repeat(32)) as Hex,
+      maxDrawdownBps: "10000",
+      maxCumulativeDrawdownBps: "10000",
+      extensions: "0x"
+    },
+    createdAt: "2026-03-09T00:00:00.000Z",
+    updatedAt: "2026-03-09T00:00:00.000Z"
+  }).result.accountContext;
+
+  const contextPlan = (
+    await buildAssetTransferPlanFromAccountContext({
+      accountContext,
+      tokenAddress: "0xdddddddddddddddddddddddddddddddddddddddd" as Address,
+      to: "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" as Address,
+      amountRaw: "250000",
+      nonce: "9",
+      deadline: "999999",
+      authorityEpoch: "1"
+    })
+  ).result;
+
+  const result = createAssetTransferResult({
+    assetTransferPlan: contextPlan,
+    status: "submitted",
+    updatedAt: "2026-03-09T02:10:00.000Z",
+    submittedAt: "2026-03-09T02:10:00.000Z",
+    txHash: ("0x" + "56".repeat(32)) as Hex
+  });
+
+  assert.equal("accountContext" in result.result.assetTransferResult.plan, true);
+  if ("accountContext" in result.result.assetTransferResult.plan) {
+    assert.equal(result.result.assetTransferResult.plan.accountContext.agentId, "predict-bot-session");
+  }
+  assert.equal(result.result.assetTransferResult.status, "submitted");
 });
