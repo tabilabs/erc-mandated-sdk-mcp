@@ -1,11 +1,12 @@
 import type { Chain } from "viem";
-import { bscTestnet, sepolia } from "viem/chains";
+import { base, bsc, bscTestnet, sepolia } from "viem/chains";
 import { ErcMandatedSdkError } from "./errors.js";
 
 export interface SupportedChain {
   id: number;
   name: string;
   rpcUrlEnvVar: string;
+  rpcUrlEnvCandidates?: string[];
   factoryEnvCandidates?: string[];
   viemChain?: Chain;
 }
@@ -18,6 +19,7 @@ export class NetworkConfigError extends ErcMandatedSdkError {
   readonly code: NetworkConfigErrorCode;
   readonly chainId: number;
   readonly rpcUrlEnvVar?: string;
+  readonly rpcUrlEnvCandidates?: string[];
 
   constructor(
     message: string,
@@ -25,6 +27,7 @@ export class NetworkConfigError extends ErcMandatedSdkError {
       code: NetworkConfigErrorCode;
       chainId: number;
       rpcUrlEnvVar?: string;
+      rpcUrlEnvCandidates?: string[];
     }
   ) {
     super(message, {
@@ -32,12 +35,14 @@ export class NetworkConfigError extends ErcMandatedSdkError {
       name: "NetworkConfigError",
       details: {
         chainId: params.chainId,
-        rpcUrlEnvVar: params.rpcUrlEnvVar
+        rpcUrlEnvVar: params.rpcUrlEnvVar,
+        rpcUrlEnvCandidates: params.rpcUrlEnvCandidates
       }
     });
     this.code = params.code;
     this.chainId = params.chainId;
     this.rpcUrlEnvVar = params.rpcUrlEnvVar;
+    this.rpcUrlEnvCandidates = params.rpcUrlEnvCandidates;
   }
 }
 
@@ -48,6 +53,7 @@ const DEFAULT_SUPPORTED_CHAINS: readonly Readonly<SupportedChain>[] = Object.fre
     id: 97,
     name: "BSC Testnet",
     rpcUrlEnvVar: "BSC_TESTNET_RPC_URL",
+    rpcUrlEnvCandidates: ["BSC_TESTNET_RPC_URL", "BSC_RPC_URL", "ERC_MANDATED_RPC_URL"],
     factoryEnvCandidates: ["BSC_TESTNET_FACTORY_ADDRESS", "BSC_TESTNET_FACTORY", "FACTORY_ADDRESS"],
     viemChain: bscTestnet
   }),
@@ -55,8 +61,25 @@ const DEFAULT_SUPPORTED_CHAINS: readonly Readonly<SupportedChain>[] = Object.fre
     id: 11155111,
     name: "Sepolia",
     rpcUrlEnvVar: "SEPOLIA_RPC_URL",
+    rpcUrlEnvCandidates: ["SEPOLIA_RPC_URL", "ERC_MANDATED_RPC_URL"],
     factoryEnvCandidates: ["SEPOLIA_FACTORY_ADDRESS", "SEPOLIA_FACTORY", "FACTORY_ADDRESS"],
     viemChain: sepolia
+  }),
+  Object.freeze({
+    id: 56,
+    name: "BSC Mainnet",
+    rpcUrlEnvVar: "BSC_MAINNET_RPC_URL",
+    rpcUrlEnvCandidates: ["BSC_MAINNET_RPC_URL", "BSC_RPC_URL", "ERC_MANDATED_RPC_URL"],
+    factoryEnvCandidates: ["BSC_MAINNET_FACTORY_ADDRESS", "BSC_FACTORY_ADDRESS", "FACTORY_ADDRESS"],
+    viemChain: bsc
+  }),
+  Object.freeze({
+    id: 8453,
+    name: "Base Mainnet",
+    rpcUrlEnvVar: "BASE_MAINNET_RPC_URL",
+    rpcUrlEnvCandidates: ["BASE_MAINNET_RPC_URL", "BASE_RPC_URL", "ERC_MANDATED_RPC_URL"],
+    factoryEnvCandidates: ["BASE_MAINNET_FACTORY_ADDRESS", "BASE_FACTORY_ADDRESS", "FACTORY_ADDRESS"],
+    viemChain: base
   })
 ]);
 
@@ -88,11 +111,28 @@ function cloneViemChain(viemChain: Chain | undefined): Chain | undefined {
   return deepCloneValue(viemChain);
 }
 
+function normalizeRpcUrlEnvCandidates(chain: Readonly<SupportedChain>): string[] {
+  const seen = new Set<string>();
+  const candidates: string[] = [];
+
+  for (const candidate of [chain.rpcUrlEnvVar, ...(chain.rpcUrlEnvCandidates ?? [])]) {
+    if (candidate.length === 0 || seen.has(candidate)) {
+      continue;
+    }
+
+    seen.add(candidate);
+    candidates.push(candidate);
+  }
+
+  return candidates;
+}
+
 function cloneChainConfig(chain: Readonly<SupportedChain>): SupportedChain {
   return {
     id: chain.id,
     name: chain.name,
     rpcUrlEnvVar: chain.rpcUrlEnvVar,
+    rpcUrlEnvCandidates: normalizeRpcUrlEnvCandidates(chain),
     factoryEnvCandidates: chain.factoryEnvCandidates ? [...chain.factoryEnvCandidates] : undefined,
     viemChain: cloneViemChain(chain.viemChain)
   };
@@ -117,20 +157,25 @@ export function getChainConfig(chainId: number = DEFAULT_CHAIN_ID): SupportedCha
 
 export function getRpcUrl(chainId: number = DEFAULT_CHAIN_ID): string {
   const chain = getChainConfig(chainId);
-  const rpcUrl = process.env[chain.rpcUrlEnvVar];
+  const rpcUrlEnvCandidates = chain.rpcUrlEnvCandidates ?? [chain.rpcUrlEnvVar];
 
-  if (!rpcUrl) {
-    throw new NetworkConfigError(
-      `RPC URL is not configured for chainId ${chain.id}. Set ${chain.rpcUrlEnvVar}.`,
-      {
-        code: "RPC_URL_NOT_CONFIGURED",
-        chainId: chain.id,
-        rpcUrlEnvVar: chain.rpcUrlEnvVar
-      }
-    );
+  for (const envKey of rpcUrlEnvCandidates) {
+    const rpcUrl = process.env[envKey];
+
+    if (rpcUrl) {
+      return rpcUrl;
+    }
   }
 
-  return rpcUrl;
+  throw new NetworkConfigError(
+    `RPC URL is not configured for chainId ${chain.id}. Set one of: ${rpcUrlEnvCandidates.join(", ")}.`,
+    {
+      code: "RPC_URL_NOT_CONFIGURED",
+      chainId: chain.id,
+      rpcUrlEnvVar: chain.rpcUrlEnvVar,
+      rpcUrlEnvCandidates
+    }
+  );
 }
 
 export function registerSupportedChain(chain: SupportedChain): void {

@@ -4,6 +4,8 @@ import type {
   buildFundAndActionPlan,
   buildAssetTransferPlanFromAccountContext,
   buildAssetTransferPlan,
+  executeAssetTransfer,
+  executeAssetTransferFromAccountContext,
   checkAssetTransferAgainstFundingPolicy,
   createAssetTransferResult,
   createFundAndActionExecutionSession,
@@ -13,6 +15,7 @@ import type {
   buildMandateSignRequest,
   checkMandateRevoked,
   checkNonceUsed,
+  bootstrapVault,
   healthCheckVault,
   predictVaultAddress,
   prepareCreateVaultTx,
@@ -33,8 +36,11 @@ export interface SdkAdapter {
   createAssetTransferResult: typeof createAssetTransferResult;
   checkAssetTransferAgainstFundingPolicy: typeof checkAssetTransferAgainstFundingPolicy;
   buildAssetTransferPlanFromAccountContext: typeof buildAssetTransferPlanFromAccountContext;
+  executeAssetTransferFromAccountContext: typeof executeAssetTransferFromAccountContext;
+  bootstrapVault: typeof bootstrapVault;
   healthCheckVault: typeof healthCheckVault;
   buildAssetTransferPlan: typeof buildAssetTransferPlan;
+  executeAssetTransfer: typeof executeAssetTransfer;
   buildMandateSignRequest: typeof buildMandateSignRequest;
   predictVaultAddress: typeof predictVaultAddress;
   prepareCreateVaultTx: typeof prepareCreateVaultTx;

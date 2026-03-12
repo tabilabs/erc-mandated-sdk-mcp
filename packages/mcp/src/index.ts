@@ -17,8 +17,11 @@ const DEFAULT_SDK_ADAPTER = {
   createAssetTransferResult: sdk.createAssetTransferResult,
   checkAssetTransferAgainstFundingPolicy: sdk.checkAssetTransferAgainstFundingPolicy,
   buildAssetTransferPlanFromAccountContext: sdk.buildAssetTransferPlanFromAccountContext,
+  executeAssetTransferFromAccountContext: executeAssetTransferFromAccountContextWithRuntime,
+  bootstrapVault: bootstrapVaultWithRuntime,
   healthCheckVault: sdk.healthCheckVault,
   buildAssetTransferPlan: sdk.buildAssetTransferPlan,
+  executeAssetTransfer: executeAssetTransferWithRuntime,
   buildMandateSignRequest: sdk.buildMandateSignRequest,
   predictVaultAddress: sdk.predictVaultAddress,
   prepareCreateVaultTx: sdk.prepareCreateVaultTx,
@@ -34,7 +37,13 @@ const DEFAULT_SDK_ADAPTER = {
 import { type LoadedTool, loadTools } from "./contract/loadTools.js";
 import { toToolError } from "./errors.js";
 import { buildErrorToolResult, makeTextContent, normalizeAjvErrors } from "./errorResponse.js";
+import {
+  executeAssetTransferFromAccountContextWithRuntime,
+  executeAssetTransferWithRuntime
+} from "./runtimeAssetTransfer.js";
+import { bootstrapVaultWithRuntime } from "./runtimeBootstrap.js";
 import { ensurePayloadMatchesOutputSchema, getSchemaRepairModeFromEnv } from "./schemaRepair.js";
+import { loadSupportedChainsFromEnv } from "./supportedChains.js";
 import { handleToolCall } from "./tools/handlers.js";
 import type { SdkAdapter } from "./tools/sdkAdapter.js";
 
@@ -55,6 +64,11 @@ export interface ToolError {
   message: string;
   details?: Record<string, unknown>;
   suggestion?: string;
+}
+
+export interface McpServerOptions {
+  sdkAdapter?: SdkAdapter;
+  supportedChains?: sdk.SupportedChain[];
 }
 
 type JsonObject = Record<string, unknown>;
@@ -98,11 +112,13 @@ function normalizeForJson<T>(value: T): T {
   return walk(value) as T;
 }
 
-export async function createMcpServer(options?: {
-  sdkAdapter?: SdkAdapter;
-}): Promise<{ server: Server }> {
+export async function createMcpServer(options?: McpServerOptions): Promise<{ server: Server }> {
   const info = getMcpInfo();
   const contract = await loadTools();
+
+  if (options?.supportedChains && options.supportedChains.length > 0) {
+    sdk.registerSupportedChains(options.supportedChains);
+  }
 
   const server = new Server(
     {
@@ -282,7 +298,8 @@ export async function createMcpServer(options?: {
 }
 
 export async function runMcpServer(): Promise<void> {
-  const { server } = await createMcpServer();
+  const supportedChains = await loadSupportedChainsFromEnv();
+  const { server } = await createMcpServer({ supportedChains });
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }

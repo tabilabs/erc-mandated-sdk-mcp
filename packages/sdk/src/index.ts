@@ -136,6 +136,22 @@ export {
 } from "./vault.js";
 
 export {
+  VaultBootstrapError,
+  bootstrapVault,
+  type VaultBootstrapErrorCode,
+  type VaultBootstrapMode,
+  type VaultBootstrapAuthorityMode,
+  type VaultBootstrapDeploymentStatus,
+  type VaultBootstrapReceiptStatus,
+  type VaultBootstrapInput,
+  type VaultBootstrapOutput,
+  type VaultBootstrapReadClient,
+  type VaultBootstrapExecutionAdapter,
+  type VaultBootstrapAccountContextOptions,
+  type VaultBootstrapFundingPolicyOptions
+} from "./vaultBootstrap.js";
+
+export {
   buildMandateSignRequest,
   type MandateBuildSignRequestInput,
   type MandateBuildSignRequestOutput,
@@ -152,6 +168,20 @@ export {
   type AssetTransferPlanInput,
   type AssetTransferPlanOutput
 } from "./assetTransfer.js";
+
+export {
+  AssetTransferExecuteError,
+  executeAssetTransfer,
+  executeAssetTransferFromAccountContext,
+  type AssetTransferExecuteErrorCode,
+  type AssetTransferExecuteReceiptStatus,
+  type AssetTransferExecutionAdapter,
+  type AssetTransferExecuteControls,
+  type AssetTransferExecuteInput,
+  type AssetTransferExecuteFromContextInput,
+  type AssetTransferExecuteOutput,
+  type AssetTransferExecuteWithContextOutput
+} from "./assetTransferExecute.js";
 
 export {
   AssetTransferResultError,

@@ -21,10 +21,12 @@ test("getSupportedChains returns BSC Testnet first and Sepolia as fallback", (t)
 
   assert.deepEqual(
     chains.map((chain: { id: number }) => chain.id),
-    [97, 11155111]
+    [97, 11155111, 56, 8453]
   );
   assert.equal(chains[0]?.name, "BSC Testnet");
   assert.equal(chains[1]?.name, "Sepolia");
+  assert.equal(chains[2]?.name, "BSC Mainnet");
+  assert.equal(chains[3]?.name, "Base Mainnet");
 });
 
 test("getChainConfig defaults to BSC Testnet", (t) => {
@@ -34,6 +36,11 @@ test("getChainConfig defaults to BSC Testnet", (t) => {
 
   assert.equal(chain.id, 97);
   assert.equal(chain.rpcUrlEnvVar, "BSC_TESTNET_RPC_URL");
+  assert.deepEqual(chain.rpcUrlEnvCandidates, [
+    "BSC_TESTNET_RPC_URL",
+    "BSC_RPC_URL",
+    "ERC_MANDATED_RPC_URL"
+  ]);
 });
 
 test("getChainConfig selects Sepolia when chainId=11155111", (t) => {
@@ -43,6 +50,35 @@ test("getChainConfig selects Sepolia when chainId=11155111", (t) => {
 
   assert.equal(chain.id, 11155111);
   assert.equal(chain.rpcUrlEnvVar, "SEPOLIA_RPC_URL");
+  assert.deepEqual(chain.rpcUrlEnvCandidates, ["SEPOLIA_RPC_URL", "ERC_MANDATED_RPC_URL"]);
+});
+
+test("getChainConfig selects BSC Mainnet when chainId=56", (t) => {
+  resetSupportedChains();
+  t.after(() => resetSupportedChains());
+  const chain = getChainConfig(56);
+
+  assert.equal(chain.id, 56);
+  assert.equal(chain.rpcUrlEnvVar, "BSC_MAINNET_RPC_URL");
+  assert.deepEqual(chain.rpcUrlEnvCandidates, [
+    "BSC_MAINNET_RPC_URL",
+    "BSC_RPC_URL",
+    "ERC_MANDATED_RPC_URL"
+  ]);
+});
+
+test("getChainConfig selects Base Mainnet when chainId=8453", (t) => {
+  resetSupportedChains();
+  t.after(() => resetSupportedChains());
+  const chain = getChainConfig(8453);
+
+  assert.equal(chain.id, 8453);
+  assert.equal(chain.rpcUrlEnvVar, "BASE_MAINNET_RPC_URL");
+  assert.deepEqual(chain.rpcUrlEnvCandidates, [
+    "BASE_MAINNET_RPC_URL",
+    "BASE_RPC_URL",
+    "ERC_MANDATED_RPC_URL"
+  ]);
 });
 
 test("getRpcUrl reads from environment variable", (t) => {
@@ -62,6 +98,31 @@ test("getRpcUrl reads from environment variable", (t) => {
   }
 });
 
+test("getRpcUrl falls back to generic chain candidate env", (t) => {
+  resetSupportedChains();
+  t.after(() => resetSupportedChains());
+  const previousMainnet = process.env.BSC_MAINNET_RPC_URL;
+  const previousGeneric = process.env.BSC_RPC_URL;
+
+  delete process.env.BSC_MAINNET_RPC_URL;
+  process.env.BSC_RPC_URL = "https://bsc-mainnet.example";
+  try {
+    assert.equal(getRpcUrl(56), "https://bsc-mainnet.example");
+  } finally {
+    if (previousMainnet === undefined) {
+      delete process.env.BSC_MAINNET_RPC_URL;
+    } else {
+      process.env.BSC_MAINNET_RPC_URL = previousMainnet;
+    }
+
+    if (previousGeneric === undefined) {
+      delete process.env.BSC_RPC_URL;
+    } else {
+      process.env.BSC_RPC_URL = previousGeneric;
+    }
+  }
+});
+
 test("getRpcUrl throws a structured error when env is missing", (t) => {
   resetSupportedChains();
   t.after(() => resetSupportedChains());
@@ -76,6 +137,11 @@ test("getRpcUrl throws a structured error when env is missing", (t) => {
         assert.equal(error.code, "RPC_URL_NOT_CONFIGURED");
         assert.equal(error.chainId, 97);
         assert.equal(error.rpcUrlEnvVar, "BSC_TESTNET_RPC_URL");
+        assert.deepEqual(error.rpcUrlEnvCandidates, [
+          "BSC_TESTNET_RPC_URL",
+          "BSC_RPC_URL",
+          "ERC_MANDATED_RPC_URL"
+        ]);
         return true;
       }
     );
@@ -110,6 +176,7 @@ test("external mutation of returned viemChain does not pollute internal config",
     id: 31337,
     name: "Local Dev",
     rpcUrlEnvVar: "LOCAL_DEV_RPC_URL",
+    rpcUrlEnvCandidates: ["CHAIN_31337_RPC_URL", "LOCAL_DEV_RPC_URL"],
     viemChain: {
       id: 31337,
       name: "Local Dev",
@@ -159,6 +226,7 @@ test("getRpcUrl throws structured error for Sepolia when env is missing", (t) =>
         assert.equal(error.code, "RPC_URL_NOT_CONFIGURED");
         assert.equal(error.chainId, 11155111);
         assert.equal(error.rpcUrlEnvVar, "SEPOLIA_RPC_URL");
+        assert.deepEqual(error.rpcUrlEnvCandidates, ["SEPOLIA_RPC_URL", "ERC_MANDATED_RPC_URL"]);
         return true;
       }
     );
@@ -182,6 +250,7 @@ test("registerSupportedChain adds custom chain with viemChain and rpc env", (t) 
     id: 42161,
     name: "Arbitrum One",
     rpcUrlEnvVar: "ARBITRUM_RPC_URL",
+    rpcUrlEnvCandidates: ["ARBITRUM_RPC_URL", "ERC_MANDATED_RPC_URL"],
     viemChain: arbitrum,
     factoryEnvCandidates: ["ARBITRUM_FACTORY_ADDRESS", "FACTORY_ADDRESS"]
   });
@@ -191,6 +260,7 @@ test("registerSupportedChain adds custom chain with viemChain and rpc env", (t) 
     assert.equal(chain.id, 42161);
     assert.equal(chain.name, "Arbitrum One");
     assert.equal(chain.rpcUrlEnvVar, "ARBITRUM_RPC_URL");
+    assert.deepEqual(chain.rpcUrlEnvCandidates, ["ARBITRUM_RPC_URL", "ERC_MANDATED_RPC_URL"]);
     assert.equal(getRpcUrl(42161), "https://arbitrum.example");
     assert.deepEqual(chain.factoryEnvCandidates, ["ARBITRUM_FACTORY_ADDRESS", "FACTORY_ADDRESS"]);
     assert.notEqual(chain.viemChain, arbitrum);
@@ -212,12 +282,14 @@ test("registerSupportedChain overrides existing chain config", (t) => {
     id: 97,
     name: "BSC Testnet Custom",
     rpcUrlEnvVar: "CUSTOM_BSC_RPC_URL",
+    rpcUrlEnvCandidates: ["CHAIN_97_RPC_URL", "CUSTOM_BSC_RPC_URL"],
     factoryEnvCandidates: ["CUSTOM_BSC_FACTORY"]
   });
 
   const chain = getChainConfig(97);
   assert.equal(chain.name, "BSC Testnet Custom");
   assert.equal(chain.rpcUrlEnvVar, "CUSTOM_BSC_RPC_URL");
+  assert.deepEqual(chain.rpcUrlEnvCandidates, ["CUSTOM_BSC_RPC_URL", "CHAIN_97_RPC_URL"]);
   assert.deepEqual(chain.factoryEnvCandidates, ["CUSTOM_BSC_FACTORY"]);
 });
 
@@ -229,12 +301,14 @@ test("registerSupportedChains registers multiple chains", (t) => {
     {
       id: 8453,
       name: "Base",
-      rpcUrlEnvVar: "BASE_RPC_URL"
+      rpcUrlEnvVar: "BASE_RPC_URL",
+      rpcUrlEnvCandidates: ["BASE_RPC_URL", "ERC_MANDATED_RPC_URL"]
     },
     {
       id: 10,
       name: "Optimism",
-      rpcUrlEnvVar: "OPTIMISM_RPC_URL"
+      rpcUrlEnvVar: "OPTIMISM_RPC_URL",
+      rpcUrlEnvCandidates: ["OPTIMISM_RPC_URL", "ERC_MANDATED_RPC_URL"]
     }
   ]);
 

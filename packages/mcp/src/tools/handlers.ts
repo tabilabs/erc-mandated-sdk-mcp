@@ -36,6 +36,11 @@ export async function handleToolCall(toolName: string, args: JsonObject, sdk: Sd
         return (await sdk.createAgentFundingPolicy(input)) as unknown as JsonResult;
       }
 
+      case "vault_bootstrap": {
+        const input = args as unknown as ToolInput<"bootstrapVault">;
+        return (await sdk.bootstrapVault(input)) as unknown as JsonResult;
+      }
+
       case "agent_build_fund_and_action_plan": {
         const input = args as unknown as ToolInput<"buildFundAndActionPlan">;
         return (await sdk.buildFundAndActionPlan(input)) as unknown as JsonResult;
@@ -229,6 +234,30 @@ export async function handleToolCall(toolName: string, args: JsonObject, sdk: Sd
             txRequest: prepared.result.txRequest
           }
         };
+      }
+
+      case "vault_execute_asset_transfer": {
+        const input = args as unknown as AssetTransferExecuteArgs;
+        return (await sdk.executeAssetTransfer({
+          ...input,
+          executeContext: {
+            from: input.from as `0x${string}` | undefined,
+            signature: input.signature as `0x${string}`,
+            adapterProofs: input.adapterProofs as `0x${string}`[][]
+          }
+        })) as unknown as JsonResult;
+      }
+
+      case "vault_execute_asset_transfer_from_context": {
+        const input = args as unknown as AssetTransferFromContextExecuteArgs;
+        return (await sdk.executeAssetTransferFromAccountContext({
+          ...input,
+          executeContext: {
+            from: input.from as `0x${string}` | undefined,
+            signature: input.signature as `0x${string}`,
+            adapterProofs: input.adapterProofs as `0x${string}`[][]
+          }
+        })) as unknown as JsonResult;
       }
 
       case "vault_simulate_execute": {

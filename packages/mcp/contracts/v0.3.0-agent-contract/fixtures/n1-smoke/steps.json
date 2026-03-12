@@ -1,0 +1,226 @@
+[
+  {
+    "tool": "vault_health_check",
+    "input": {
+      "chainId": 11155111,
+      "vault": "0x1111111111111111111111111111111111111111",
+      "blockTag": "latest"
+    },
+    "expect": {
+      "result": {
+        "blockNumber": 0,
+        "vault": "0x1111111111111111111111111111111111111111",
+        "mandateAuthority": "0x5555555555555555555555555555555555555555",
+        "authorityEpoch": "1",
+        "pendingAuthority": "0x0000000000000000000000000000000000000000",
+        "nonceThreshold": "0",
+        "totalAssets": "0"
+      }
+    }
+  },
+  {
+    "tool": "mandate_build_sign_request",
+    "input": {
+      "chainId": 11155111,
+      "vault": "0x1111111111111111111111111111111111111111",
+      "executor": "0x2222222222222222222222222222222222222222",
+      "nonce": "1",
+      "deadline": "0",
+      "authorityEpoch": "1",
+      "allowedAdaptersRoot": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "maxDrawdownBps": "10000",
+      "maxCumulativeDrawdownBps": "10000",
+      "payloadBinding": "actionsDigest",
+      "actions": [
+        {
+          "adapter": "0x3333333333333333333333333333333333333333",
+          "value": "0",
+          "data": "0x095ea7b3"
+        },
+        {
+          "adapter": "0x4444444444444444444444444444444444444444",
+          "value": "0",
+          "data": "0x617ba037"
+        }
+      ],
+      "extensions": "0x"
+    },
+    "expect": {
+      "result": {
+        "typedData": {},
+        "mandate": {
+          "vault": "0x1111111111111111111111111111111111111111",
+          "executor": "0x2222222222222222222222222222222222222222",
+          "nonce": "1",
+          "deadline": "0",
+          "authorityEpoch": "1",
+          "allowedAdaptersRoot": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "maxDrawdownBps": "10000",
+          "maxCumulativeDrawdownBps": "10000",
+          "payloadDigest": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "extensionsHash": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        },
+        "mandateHash": "0x9999999999999999999999999999999999999999999999999999999999999999",
+        "actionsDigest": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "extensionsHash": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      }
+    }
+  },
+  {
+    "tool": "vault_check_nonce",
+    "input": {
+      "chainId": 11155111,
+      "vault": "0x1111111111111111111111111111111111111111",
+      "authority": "0x5555555555555555555555555555555555555555",
+      "nonce": "1"
+    },
+    "expect": {
+      "result": {
+        "used": false
+      }
+    }
+  },
+  {
+    "tool": "mandate_check_revoked",
+    "input": {
+      "chainId": 11155111,
+      "vault": "0x1111111111111111111111111111111111111111",
+      "mandateHash": "0x9999999999999999999999999999999999999999999999999999999999999999"
+    },
+    "expect": {
+      "result": {
+        "revoked": false
+      }
+    }
+  },
+  {
+    "tool": "vault_simulate_execute",
+    "input": {
+      "chainId": 11155111,
+      "vault": "0x1111111111111111111111111111111111111111",
+      "from": "0x2222222222222222222222222222222222222222",
+      "mandate": {
+        "vault": "0x1111111111111111111111111111111111111111",
+        "executor": "0x2222222222222222222222222222222222222222",
+        "nonce": "1",
+        "deadline": "0",
+        "authorityEpoch": "1",
+        "allowedAdaptersRoot": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "maxDrawdownBps": "10000",
+        "maxCumulativeDrawdownBps": "10000",
+        "payloadDigest": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "extensionsHash": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "signature": "0x",
+      "actions": [
+        {
+          "adapter": "0x3333333333333333333333333333333333333333",
+          "value": "0",
+          "data": "0x095ea7b3"
+        },
+        {
+          "adapter": "0x4444444444444444444444444444444444444444",
+          "value": "0",
+          "data": "0x617ba037"
+        }
+      ],
+      "adapterProofs": [
+        ["0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"],
+        ["0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"]
+      ],
+      "extensions": "0x"
+    },
+    "expect": {
+      "result": {
+        "ok": true,
+        "blockNumber": 0
+      }
+    }
+  },
+  {
+    "tool": "vault_execute_prepare",
+    "input": {
+      "chainId": 11155111,
+      "vault": "0x1111111111111111111111111111111111111111",
+      "from": "0x2222222222222222222222222222222222222222",
+      "mandate": {
+        "vault": "0x1111111111111111111111111111111111111111",
+        "executor": "0x2222222222222222222222222222222222222222",
+        "nonce": "1",
+        "deadline": "0",
+        "authorityEpoch": "1",
+        "allowedAdaptersRoot": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "maxDrawdownBps": "10000",
+        "maxCumulativeDrawdownBps": "10000",
+        "payloadDigest": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "extensionsHash": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "signature": "0x",
+      "actions": [
+        {
+          "adapter": "0x3333333333333333333333333333333333333333",
+          "value": "0",
+          "data": "0x095ea7b3"
+        },
+        {
+          "adapter": "0x4444444444444444444444444444444444444444",
+          "value": "0",
+          "data": "0x617ba037"
+        }
+      ],
+      "adapterProofs": [
+        ["0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"],
+        ["0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"]
+      ],
+      "extensions": "0x"
+    },
+    "expect": {
+      "result": {
+        "txRequest": {
+          "from": "0x2222222222222222222222222222222222222222",
+          "to": "0x1111111111111111111111111111111111111111",
+          "data": "0x",
+          "value": "0"
+        }
+      }
+    }
+  },
+  {
+    "tool": "vault_revoke_mandate_prepare",
+    "input": {
+      "chainId": 11155111,
+      "vault": "0x1111111111111111111111111111111111111111",
+      "from": "0x5555555555555555555555555555555555555555",
+      "mandateHash": "0x9999999999999999999999999999999999999999999999999999999999999999"
+    },
+    "expect": {
+      "result": {
+        "txRequest": {
+          "from": "0x5555555555555555555555555555555555555555",
+          "to": "0x1111111111111111111111111111111111111111",
+          "data": "0x",
+          "value": "0"
+        }
+      }
+    }
+  },
+  {
+    "tool": "vault_invalidate_nonce_prepare",
+    "input": {
+      "chainId": 11155111,
+      "vault": "0x1111111111111111111111111111111111111111",
+      "from": "0x5555555555555555555555555555555555555555",
+      "nonce": "1"
+    },
+    "expect": {
+      "result": {
+        "txRequest": {
+          "from": "0x5555555555555555555555555555555555555555",
+          "to": "0x1111111111111111111111111111111111111111",
+          "data": "0x",
+          "value": "0"
+        }
+      }
+    }
+  }
+]

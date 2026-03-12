@@ -4,8 +4,20 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import {
+  executeAssetTransfer,
+  executeAssetTransferFromAccountContext,
+  resetSupportedChains
+} from "@erc-mandated/sdk";
+
 import { createConnectedClient } from "./test-helpers.js";
 import { loadTools } from "./contract/loadTools.js";
+import {
+  loadSupportedChainsFromEnv,
+  parseSupportedChainsJson,
+  SUPPORTED_CHAINS_FILE_ENV,
+  SUPPORTED_CHAINS_JSON_ENV
+} from "./supportedChains.js";
 
 test("tools/list must exactly match frozen contract tool names", async (t) => {
   const { client, server } = await createConnectedClient();
@@ -22,6 +34,90 @@ test("tools/list must exactly match frozen contract tool names", async (t) => {
   const actualNames = listed.tools.map((tool) => tool.name);
 
   assert.deepEqual(actualNames, expectedNames);
+});
+
+test("parseSupportedChainsJson accepts supported chain config array", () => {
+  const chains = parseSupportedChainsJson(
+    JSON.stringify([
+      {
+        id: 56,
+        name: "BSC Mainnet",
+        rpcUrlEnvVar: "BSC_MAINNET_RPC_URL",
+        rpcUrlEnvCandidates: ["BSC_MAINNET_RPC_URL", "BSC_RPC_URL"],
+        factoryEnvCandidates: ["BSC_MAINNET_FACTORY_ADDRESS", "BSC_FACTORY_ADDRESS"]
+      }
+    ]),
+    "inline"
+  );
+
+  assert.deepEqual(chains, [
+    {
+      id: 56,
+      name: "BSC Mainnet",
+      rpcUrlEnvVar: "BSC_MAINNET_RPC_URL",
+      rpcUrlEnvCandidates: ["BSC_MAINNET_RPC_URL", "BSC_RPC_URL"],
+      factoryEnvCandidates: ["BSC_MAINNET_FACTORY_ADDRESS", "BSC_FACTORY_ADDRESS"]
+    }
+  ]);
+});
+
+test("loadSupportedChainsFromEnv reads inline JSON configuration", async () => {
+  const chains = await loadSupportedChainsFromEnv({
+    [SUPPORTED_CHAINS_JSON_ENV]: JSON.stringify([
+      {
+        id: 8453,
+        name: "Base Mainnet",
+        rpcUrlEnvVar: "BASE_MAINNET_RPC_URL",
+        rpcUrlEnvCandidates: ["BASE_MAINNET_RPC_URL", "BASE_RPC_URL"],
+        factoryEnvCandidates: ["BASE_MAINNET_FACTORY_ADDRESS", "BASE_FACTORY_ADDRESS"]
+      }
+    ])
+  });
+
+  assert.deepEqual(chains, [
+    {
+      id: 8453,
+      name: "Base Mainnet",
+      rpcUrlEnvVar: "BASE_MAINNET_RPC_URL",
+      rpcUrlEnvCandidates: ["BASE_MAINNET_RPC_URL", "BASE_RPC_URL"],
+      factoryEnvCandidates: ["BASE_MAINNET_FACTORY_ADDRESS", "BASE_FACTORY_ADDRESS"]
+    }
+  ]);
+});
+
+test("loadSupportedChainsFromEnv reads file configuration", async () => {
+  const tempDir = await mkdtemp(join(tmpdir(), "mcp-supported-chains-"));
+
+  try {
+    const configPath = join(tempDir, "supported-chains.json");
+    await writeFile(
+      configPath,
+      JSON.stringify([
+        {
+          id: 42161,
+          name: "Arbitrum One",
+          rpcUrlEnvVar: "ARBITRUM_RPC_URL",
+          factoryEnvCandidates: ["ARBITRUM_FACTORY_ADDRESS", "FACTORY_ADDRESS"]
+        }
+      ]),
+      "utf8"
+    );
+
+    const chains = await loadSupportedChainsFromEnv({
+      [SUPPORTED_CHAINS_FILE_ENV]: configPath
+    });
+
+    assert.deepEqual(chains, [
+      {
+        id: 42161,
+        name: "Arbitrum One",
+        rpcUrlEnvVar: "ARBITRUM_RPC_URL",
+        factoryEnvCandidates: ["ARBITRUM_FACTORY_ADDRESS", "FACTORY_ADDRESS"]
+      }
+    ]);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
 });
 
 test("invalid address input must return toolError(code/message)", async (t) => {
@@ -134,6 +230,146 @@ test("valid input without factory address config must return structured error", 
   assert.ok((structured.error?.message ?? "").length > 0);
   assert.notEqual(typeof structured.result, "undefined");
   assert.equal(structured.error?.details?.addedResultFromSchemaRepair, true);
+});
+
+test("startup supportedChains option registers additional chains for factory tools", async (t) => {
+  resetSupportedChains();
+  t.after(() => resetSupportedChains());
+
+  const savedEnv = {
+    ARBITRUM_FACTORY_ADDRESS: process.env.ARBITRUM_FACTORY_ADDRESS,
+    FACTORY_ADDRESS: process.env.FACTORY_ADDRESS
+  };
+
+  delete process.env.ARBITRUM_FACTORY_ADDRESS;
+  delete process.env.FACTORY_ADDRESS;
+
+  t.after(() => {
+    process.env.ARBITRUM_FACTORY_ADDRESS = savedEnv.ARBITRUM_FACTORY_ADDRESS;
+    process.env.FACTORY_ADDRESS = savedEnv.FACTORY_ADDRESS;
+  });
+
+  const { client, server } = await createConnectedClient(undefined, {
+    supportedChains: [
+      {
+        id: 42161,
+        name: "Arbitrum One",
+        rpcUrlEnvVar: "ARBITRUM_RPC_URL",
+        rpcUrlEnvCandidates: ["ARBITRUM_RPC_URL", "ERC_MANDATED_RPC_URL"],
+        factoryEnvCandidates: ["ARBITRUM_FACTORY_ADDRESS", "FACTORY_ADDRESS"]
+      }
+    ]
+  });
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "factory_predict_vault_address",
+    arguments: {
+      chainId: 42161,
+      asset: "0x2222222222222222222222222222222222222222",
+      name: "Vault",
+      symbol: "VLT",
+      authority: "0x1111111111111111111111111111111111111111",
+      salt: "0x" + "1".repeat(64)
+    }
+  });
+
+  const structured = result.structuredContent as {
+    error?: {
+      code?: string;
+      details?: {
+        chainId?: number;
+        envKeys?: string[];
+      };
+    };
+  };
+
+  assert.equal(result.isError, true);
+  assert.equal(structured.error?.code, "FACTORY_ADDRESS_NOT_CONFIGURED");
+  assert.equal(structured.error?.details?.chainId, 42161);
+  assert.deepEqual(structured.error?.details?.envKeys, [
+    "ARBITRUM_FACTORY_ADDRESS",
+    "FACTORY_ADDRESS"
+  ]);
+});
+
+test("vault_bootstrap returns normalized bootstrap payload through MCP contract", async (t) => {
+  const bootstrapAdapter = {
+    bootstrapVault: async () => ({
+      result: {
+        chainId: 56,
+        mode: "plan",
+        factory: "0x1111111111111111111111111111111111111111",
+        asset: "0x2222222222222222222222222222222222222222",
+        signerAddress: "0x3333333333333333333333333333333333333333",
+        predictedVault: "0x4444444444444444444444444444444444444444",
+        deployedVault: "0x4444444444444444444444444444444444444444",
+        alreadyDeployed: false,
+        deploymentStatus: "planned",
+        authorityConfig: {
+          mode: "single_key",
+          authority: "0x3333333333333333333333333333333333333333",
+          executor: "0x3333333333333333333333333333333333333333"
+        },
+        createTx: {
+          mode: "plan",
+          txRequest: {
+            from: "0x3333333333333333333333333333333333333333",
+            to: "0x1111111111111111111111111111111111111111",
+            data: "0x1234",
+            value: "0"
+          }
+        },
+        envBlock: "ERC_MANDATED_CHAIN_ID=56",
+        configBlock: "{\"chainId\":56}"
+      }
+    })
+  } as any;
+
+  const { client, server } = await createConnectedClient(bootstrapAdapter);
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "vault_bootstrap",
+    arguments: {
+      chainId: 56,
+      asset: "0x2222222222222222222222222222222222222222",
+      name: "Bootstrap Vault",
+      symbol: "BOOT",
+      salt: "0x" + "11".repeat(32),
+      signerAddress: "0x3333333333333333333333333333333333333333"
+    }
+  });
+
+  const structured = result.structuredContent as {
+    result?: {
+      chainId?: number;
+      mode?: string;
+      deploymentStatus?: string;
+      authorityConfig?: { mode?: string };
+      createTx?: { txRequest?: { to?: string } };
+      envBlock?: string;
+    };
+  };
+
+  assert.equal(result.isError, false);
+  assert.equal(structured.result?.chainId, 56);
+  assert.equal(structured.result?.mode, "plan");
+  assert.equal(structured.result?.deploymentStatus, "planned");
+  assert.equal(structured.result?.authorityConfig?.mode, "single_key");
+  assert.equal(
+    structured.result?.createTx?.txRequest?.to,
+    "0x1111111111111111111111111111111111111111"
+  );
+  assert.equal(structured.result?.envBlock, "ERC_MANDATED_CHAIN_ID=56");
 });
 
 test("strict mode turns handler error payload mismatch into INTERNAL_OUTPUT_SCHEMA_MISMATCH", async (t) => {
@@ -1106,6 +1342,71 @@ test("vault_prepare_asset_transfer composes plan builder with prepareExecuteTx",
   assert.equal(structured.result?.txRequest?.data, "0xdeadbeef");
 });
 
+test("vault_execute_asset_transfer returns normalized execution envelope", async (t) => {
+  const executeAdapter = {
+    executeAssetTransfer: async (input: Parameters<typeof executeAssetTransfer>[0]) =>
+      executeAssetTransfer(input, {
+        execution: {
+          async sendTransaction() {
+            return ("0x" + "12".repeat(32)) as `0x${string}`;
+          },
+          async waitForTransactionReceipt() {
+            return {
+              status: "success" as const,
+              blockNumber: 123n,
+              blockHash: ("0x" + "34".repeat(32)) as `0x${string}`,
+              receipt: {
+                blockHash: ("0x" + "34".repeat(32)) as `0x${string}`
+              }
+            };
+          }
+        }
+      })
+  } as any;
+
+  const { client, server } = await createConnectedClient(executeAdapter);
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "vault_execute_asset_transfer",
+    arguments: {
+      chainId: 97,
+      vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+      executor: "0x1111111111111111111111111111111111111111",
+      tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+      to: "0x2222222222222222222222222222222222222222",
+      amountRaw: "1000000",
+      nonce: "1",
+      deadline: "9999999999",
+      authorityEpoch: "1",
+      allowedAdaptersRoot: "0x" + "00".repeat(32),
+      maxDrawdownBps: "10000",
+      maxCumulativeDrawdownBps: "10000",
+      signature: "0x1234",
+      adapterProofs: [["0x" + "66".repeat(32)]]
+    }
+  });
+
+  const structured = result.structuredContent as {
+    result?: {
+      receiptStatus?: string;
+      txRequest?: { to?: string };
+      assetTransferResult?: { status?: string; txHash?: string; receipt?: { blockNumber?: string } };
+    };
+  };
+
+  assert.equal(result.isError, false);
+  assert.equal(structured.result?.receiptStatus, "success");
+  assert.equal(structured.result?.txRequest?.to, "0x92040EBDA2143C3BBD12962479afA87dB6e56059");
+  assert.equal(structured.result?.assetTransferResult?.status, "confirmed");
+  assert.equal(structured.result?.assetTransferResult?.txHash, "0x" + "12".repeat(32));
+  assert.equal(structured.result?.assetTransferResult?.receipt?.blockNumber, "123");
+});
+
 test("agent_account_context_create returns normalized account context", async (t) => {
   const { client, server } = await createConnectedClient();
 
@@ -1653,6 +1954,84 @@ test("vault_prepare_asset_transfer_from_context composes context plan builder wi
   assert.equal(result.isError, false);
   assert.equal(structured.result?.accountContext?.agentId, "predict-bot-ctx");
   assert.equal(structured.result?.txRequest?.data, "0xbeadfeed");
+});
+
+test("vault_execute_asset_transfer_from_context returns normalized execution envelope", async (t) => {
+  const contextExecuteAdapter = {
+    executeAssetTransferFromAccountContext: async (
+      input: Parameters<typeof executeAssetTransferFromAccountContext>[0]
+    ) =>
+      executeAssetTransferFromAccountContext(input, {
+        execution: {
+          async sendTransaction() {
+            return ("0x" + "12".repeat(32)) as `0x${string}`;
+          },
+          async waitForTransactionReceipt() {
+            return {
+              status: "timeout" as const
+            };
+          }
+        }
+      })
+  } as any;
+
+  const { client, server } = await createConnectedClient(contextExecuteAdapter);
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "vault_execute_asset_transfer_from_context",
+    arguments: {
+      accountContext: {
+        agentId: "predict-bot-ctx",
+        chainId: 97,
+        vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+        authority: "0x1111111111111111111111111111111111111111",
+        executor: "0x2222222222222222222222222222222222222222",
+        defaults: {
+          allowedAdaptersRoot: "0x" + "00".repeat(32),
+          maxDrawdownBps: "10000",
+          maxCumulativeDrawdownBps: "10000",
+          payloadBinding: "actionsDigest",
+          extensions: "0x"
+        },
+        createdAt: "2026-03-09T00:00:00.000Z",
+        updatedAt: "2026-03-09T00:00:00.000Z"
+      },
+      fundingPolicy: {
+        policyId: "predict-funding",
+        allowedRecipients: ["0x3333333333333333333333333333333333333333"],
+        allowedTokenAddresses: ["0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E"],
+        createdAt: "2026-03-09T00:00:00.000Z",
+        updatedAt: "2026-03-09T00:00:00.000Z"
+      },
+      tokenAddress: "0x128e3C6376c3Db6a343bC350684b6dEa5999cA4E",
+      to: "0x3333333333333333333333333333333333333333",
+      amountRaw: "1000000",
+      nonce: "1",
+      deadline: "9999999999",
+      authorityEpoch: "1",
+      signature: "0x1234",
+      adapterProofs: [["0x" + "66".repeat(32)]]
+    }
+  });
+
+  const structured = result.structuredContent as {
+    result?: {
+      accountContext?: { agentId?: string };
+      receiptStatus?: string;
+      assetTransferResult?: { status?: string; txHash?: string };
+    };
+  };
+
+  assert.equal(result.isError, false);
+  assert.equal(structured.result?.accountContext?.agentId, "predict-bot-ctx");
+  assert.equal(structured.result?.receiptStatus, "timeout");
+  assert.equal(structured.result?.assetTransferResult?.status, "submitted");
+  assert.equal(structured.result?.assetTransferResult?.txHash, "0x" + "12".repeat(32));
 });
 
 const validFundAndActionBalanceSnapshot = {
