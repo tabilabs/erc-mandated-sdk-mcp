@@ -1,5 +1,16 @@
 # @erc-mandated/mcp
 
+## 0.3.0
+
+### Minor Changes
+
+- Add multichain bootstrap support and asset transfer execute tools.
+
+### Patch Changes
+
+- Updated dependencies
+  - @erc-mandated/sdk@0.3.0
+
 ## 0.2.0
 
 ### Minor Changes

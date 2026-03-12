@@ -1,7 +1,7 @@
 {
   "name": "@erc-mandated/mcp",
   "description": "MCP server and CLI for ERC-8192 mandated execution workflows.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": false,
   "type": "module",
   "publishConfig": {
@@ -40,7 +40,7 @@
   },
   "homepage": "https://github.com/tabilabs/erc-mandated-sdk-mcp#readme",
   "dependencies": {
-    "@erc-mandated/sdk": "^0.2.0",
+    "@erc-mandated/sdk": "^0.3.0",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "ajv": "^8.18.0"
   },

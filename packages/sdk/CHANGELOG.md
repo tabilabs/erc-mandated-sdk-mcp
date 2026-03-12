@@ -1,5 +1,11 @@
 # @erc-mandated/sdk
 
+## 0.3.0
+
+### Minor Changes
+
+- Add multichain bootstrap support and asset transfer execute tools.
+
 ## 0.2.0
 
 ### Minor Changes
