@@ -143,7 +143,7 @@ export async function loadTools(contractPath?: URL | string): Promise<LoadedTool
     const selected = await getSelectedContractVersion();
     throw new Error(
       `Contract tools file not found for contractVersion='${selected}'. ` +
-        `Set ${CONTRACT_VERSION_ENV_KEY} to a valid version like 'v0.1.1-agent-contract'. ` +
+        `Set ${CONTRACT_VERSION_ENV_KEY} to a valid version like 'v0.2.0-agent-contract'. ` +
         `Tried path: ${sourcePath}`
     );
   }

@@ -1,5 +1,6 @@
 {
   "name": "@erc-mandated/mcp",
+  "description": "MCP server and CLI for ERC-8192 mandated execution workflows.",
   "version": "0.2.0",
   "private": false,
   "type": "module",

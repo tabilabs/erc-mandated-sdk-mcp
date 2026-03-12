@@ -1,5 +1,6 @@
 {
   "name": "@erc-mandated/sdk",
+  "description": "TypeScript SDK for ERC-8192 mandated execution workflows.",
   "version": "0.2.0",
   "private": false,
   "type": "module",

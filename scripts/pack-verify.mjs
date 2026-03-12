@@ -96,7 +96,7 @@ async function verifyMcpListTools(sandboxDir) {
 
   const client = new Client({
     name: "pack-verify-client",
-    version: "0.1.0"
+    version: "0.2.0"
   });
 
   try {

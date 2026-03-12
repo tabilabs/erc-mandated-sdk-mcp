@@ -1,5 +1,6 @@
 {
   "name": "erc-mandated-execution",
+  "description": "TypeScript SDK and MCP server workspace for ERC-8192 mandated execution workflows.",
   "version": "0.1.0",
   "private": true,
   "type": "module",

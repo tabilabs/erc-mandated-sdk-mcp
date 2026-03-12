@@ -11,7 +11,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 
 const repoRoot = process.cwd();
-const DEFAULT_CONTRACT_VERSION = "v0.1.1-agent-contract";
+const DEFAULT_CONTRACT_VERSION = "v0.2.0-agent-contract";
 const CONTRACT_VERSION_ENV_KEY = "ERC_MANDATED_CONTRACT_VERSION";
 
 let inCompatCompare = false;

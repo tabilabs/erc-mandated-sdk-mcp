@@ -1318,6 +1318,79 @@ test("vault_build_asset_transfer_plan_from_context returns context-aware plan pa
   assert.equal(structured.result?.signRequest?.typedData?.domain?.chainId, "97");
 });
 
+test("vault_build_asset_transfer_plan_from_context supports generic 18-decimal asset metadata on real SDK path", async (t) => {
+  const { client, server } = await createConnectedClient();
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const stakingToken = "0x9999999999999999999999999999999999999999";
+  const recipient = "0x4444444444444444444444444444444444444444";
+
+  const result = await client.callTool({
+    name: "vault_build_asset_transfer_plan_from_context",
+    arguments: {
+      accountContext: {
+        agentId: "yield-bot-ctx",
+        chainId: 97,
+        vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+        authority: "0x1111111111111111111111111111111111111111",
+        executor: "0x2222222222222222222222222222222222222222",
+        defaults: {
+          allowedAdaptersRoot: "0x" + "00".repeat(32),
+          maxDrawdownBps: "10000",
+          maxCumulativeDrawdownBps: "10000",
+          payloadBinding: "actionsDigest",
+          extensions: "0x"
+        },
+        createdAt: "2026-03-09T00:00:00.000Z",
+        updatedAt: "2026-03-09T00:00:00.000Z"
+      },
+      fundingPolicy: {
+        policyId: "yield-topup-policy",
+        allowedTokenAddresses: [stakingToken],
+        allowedRecipients: [recipient],
+        maxAmountPerTx: "5000000000000000000",
+        createdAt: "2026-03-09T00:00:00.000Z",
+        updatedAt: "2026-03-09T00:00:00.000Z"
+      },
+      tokenAddress: stakingToken,
+      to: recipient,
+      amountRaw: "2500000000000000000",
+      nonce: "11",
+      deadline: "9999999999",
+      authorityEpoch: "1",
+      symbol: "stUSD",
+      decimals: 18
+    }
+  });
+
+  const structured = result.structuredContent as {
+    result?: {
+      accountContext?: { agentId?: string };
+      policyCheck?: { allowed?: boolean };
+      humanReadableSummary?: {
+        tokenAddress?: string;
+        amountRaw?: string;
+        symbol?: string;
+        decimals?: number;
+      };
+      signRequest?: { typedData?: { domain?: { chainId?: string } } };
+    };
+  };
+
+  assert.equal(result.isError, false);
+  assert.equal(structured.result?.accountContext?.agentId, "yield-bot-ctx");
+  assert.equal(structured.result?.policyCheck?.allowed, true);
+  assert.equal(structured.result?.humanReadableSummary?.tokenAddress, stakingToken);
+  assert.equal(structured.result?.humanReadableSummary?.amountRaw, "2500000000000000000");
+  assert.equal(structured.result?.humanReadableSummary?.symbol, "stUSD");
+  assert.equal(structured.result?.humanReadableSummary?.decimals, 18);
+  assert.equal(structured.result?.signRequest?.typedData?.domain?.chainId, "97");
+});
+
 test("vault_simulate_asset_transfer_from_context composes context plan builder with simulateExecuteVault", async (t) => {
   const contextAdapter = {
     buildAssetTransferPlanFromAccountContext: async () => ({
@@ -1843,6 +1916,120 @@ test("agent_build_fund_and_action_plan returns funding step when target balance 
   assert.equal(structured.result?.fundingPlan?.signRequest?.typedData?.domain?.chainId, "97");
   assert.equal(structured.result?.followUpActionPlan?.executionMode, "offchain-api");
   assert.equal(structured.result?.followUpActionPlan?.assetRequirement?.amountRaw, "500000");
+  assert.deepEqual(
+    structured.result?.steps?.map((step) => [step.kind, step.status]),
+    [
+      ["fundTargetAccount", "required"],
+      ["followUpAction", "pending"]
+    ]
+  );
+});
+
+test("agent_build_fund_and_action_plan supports USDC-style predict top-up on real SDK path", async (t) => {
+  const { client, server } = await createConnectedClient();
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const usdc = "0x7777777777777777777777777777777777777777";
+  const predictAccount = "0x3333333333333333333333333333333333333333";
+
+  const result = await client.callTool({
+    name: "agent_build_fund_and_action_plan",
+    arguments: {
+      accountContext: {
+        agentId: "predict-bot-usdc",
+        chainId: 97,
+        vault: "0x92040EBDA2143C3BBD12962479afA87dB6e56059",
+        authority: "0x1111111111111111111111111111111111111111",
+        executor: "0x2222222222222222222222222222222222222222",
+        defaults: {
+          allowedAdaptersRoot: "0x" + "00".repeat(32),
+          maxDrawdownBps: "10000",
+          maxCumulativeDrawdownBps: "10000",
+          payloadBinding: "actionsDigest",
+          extensions: "0x"
+        },
+        createdAt: "2026-03-09T00:00:00.000Z",
+        updatedAt: "2026-03-09T00:00:00.000Z"
+      },
+      fundingPolicy: {
+        policyId: "predict-usdc-policy",
+        allowedTokenAddresses: [usdc],
+        allowedRecipients: [predictAccount],
+        maxAmountPerTx: "5000000",
+        maxAmountPerWindow: "20000000",
+        windowSeconds: 86400,
+        createdAt: "2026-03-09T00:00:00.000Z",
+        updatedAt: "2026-03-09T00:00:00.000Z"
+      },
+      fundingTarget: {
+        label: "predict-account",
+        recipient: predictAccount,
+        tokenAddress: usdc,
+        requiredAmountRaw: "2500000",
+        currentBalanceRaw: "500000",
+        balanceSnapshot: {
+          snapshotAt: "2026-03-09T00:10:00.000Z",
+          maxStalenessSeconds: 300,
+          observedAtBlock: "123456",
+          source: "predict-balance-indexer"
+        },
+        symbol: "USDC",
+        decimals: 6
+      },
+      fundingContext: {
+        nonce: "1",
+        deadline: "9999999999",
+        authorityEpoch: "1",
+        policyEvaluation: {
+          now: "2026-03-09T00:12:00.000Z",
+          currentSpentInWindow: "1000000"
+        }
+      },
+      followUpAction: {
+        kind: "predict.createOrder",
+        target: "predict-order-engine",
+        payload: {
+          marketId: "eth-4h-up",
+          collateralTokenAddress: usdc,
+          collateralAmountRaw: "2000000",
+          orderSide: "buy",
+          outcomeId: "up",
+          clientOrderId: "ord-usdc-1"
+        }
+      }
+    }
+  });
+
+  const structured = result.structuredContent as {
+    result?: {
+      fundingRequired?: boolean;
+      fundingTarget?: { fundingShortfallRaw?: string };
+      fundingPolicy?: { policyId?: string };
+      fundingPlan?: {
+        policyCheck?: { allowed?: boolean };
+        humanReadableSummary?: { symbol?: string; decimals?: number; amountRaw?: string; tokenAddress?: string };
+      };
+      followUpActionPlan?: { executionMode?: string; assetRequirement?: { tokenAddress?: string; amountRaw?: string } };
+      steps?: Array<{ kind?: string; status?: string }>;
+    };
+  };
+
+  assert.equal(result.isError, false);
+  assert.equal(structured.result?.fundingRequired, true);
+  assert.equal(structured.result?.fundingPolicy?.policyId, "predict-usdc-policy");
+  assert.equal(structured.result?.fundingTarget?.fundingShortfallRaw, "2000000");
+  assert.equal(structured.result?.fundingPlan?.policyCheck?.allowed, true);
+  assert.equal(structured.result?.fundingPlan?.humanReadableSummary?.tokenAddress, usdc);
+  assert.equal(structured.result?.fundingPlan?.humanReadableSummary?.amountRaw, "2000000");
+  assert.equal(structured.result?.fundingPlan?.humanReadableSummary?.symbol, "USDC");
+  assert.equal(structured.result?.fundingPlan?.humanReadableSummary?.decimals, 6);
+  assert.equal(structured.result?.followUpActionPlan?.executionMode, "offchain-api");
+  assert.equal(structured.result?.followUpActionPlan?.assetRequirement?.tokenAddress, usdc);
+  assert.equal(structured.result?.followUpActionPlan?.assetRequirement?.amountRaw, "2000000");
   assert.deepEqual(
     structured.result?.steps?.map((step) => [step.kind, step.status]),
     [

@@ -32,11 +32,11 @@ test("loadTools: default resolves contract version from latest.json", async () =
 
 test("loadTools: env override takes priority over latest.json", async () => {
   const savedEnv = process.env[ENV_KEY];
-  process.env[ENV_KEY] = "v0.1.1-agent-contract";
+  process.env[ENV_KEY] = "v0.2.0-agent-contract";
 
   try {
     const contract = await loadTools();
-    assert.equal(contract.contractVersion, "v0.1.1-agent-contract");
+    assert.equal(contract.contractVersion, "v0.2.0-agent-contract");
   } finally {
     if (savedEnv === undefined) {
       delete process.env[ENV_KEY];
