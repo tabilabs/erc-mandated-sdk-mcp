@@ -1,5 +1,13 @@
 # @erc-mandated/mcp
 
+## 0.3.1
+
+### Minor Changes
+
+- Add `factory_get_default_address` tool to query packaged default factory deployment by chainId.
+- `factory_predict_vault_address` and `factory_create_vault_prepare` now include `factorySource` in success result payloads (`input` | `env` | `registry`).
+- Document runtime behavior for the current main branch: BSC Testnet `97` and BSC Mainnet `56` are out-of-box for factory fallback via packaged registry; Base Mainnet `8453` still requires explicit factory configuration.
+
 ## 0.3.0
 
 ### Minor Changes
@@ -9,7 +17,7 @@
 ### Patch Changes
 
 - Updated dependencies
-  - @erc-mandated/sdk@0.3.0
+  - @erc-mandated/sdk@0.3.1
 
 ## 0.2.0
 

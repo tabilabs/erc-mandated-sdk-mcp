@@ -1,0 +1,2123 @@
+{
+  "contractVersion": "v0.3.1-agent-contract",
+  "schemaVersion": "2026-03-12",
+  "tools": [
+    {
+      "name": "factory_predict_vault_address",
+      "description": "Predict vault address for given params without sending a transaction.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["asset", "name", "symbol", "authority", "salt"],
+        "properties": {
+          "chainId": { "type": "integer", "minimum": 1, "description": "EVM chain id" },
+          "factory": {
+            "type": "string",
+            "pattern": "^0x[a-fA-F0-9]{40}$",
+            "description": "VaultFactory address (optional if configured server-side)"
+          },
+          "asset": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "symbol": { "type": "string", "minLength": 1, "maxLength": 16 },
+          "authority": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "salt": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$", "description": "bytes32 salt" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["result"],
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["predictedVault", "factorySource"],
+            "properties": {
+              "predictedVault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+              "factorySource": { "type": "string", "enum": ["input", "env", "registry"] }
+            }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "factory_create_vault_prepare",
+      "description": "Prepare createVault transaction request (to/data/value=0). MCP MUST NOT send unless explicitly enabled.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["from", "asset", "name", "symbol", "authority", "salt"],
+        "properties": {
+          "chainId": { "type": "integer", "minimum": 1, "description": "EVM chain id" },
+          "factory": {
+            "type": "string",
+            "pattern": "^0x[a-fA-F0-9]{40}$",
+            "description": "VaultFactory address (optional if configured server-side)"
+          },
+          "from": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$", "description": "Transaction sender (vault creator)" },
+          "asset": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "symbol": { "type": "string", "minLength": 1, "maxLength": 16 },
+          "authority": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "salt": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$", "description": "bytes32 salt" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["txRequest", "predictedVault", "factorySource"],
+            "properties": {
+              "predictedVault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+              "factorySource": { "type": "string", "enum": ["input", "env", "registry"] },
+              "txRequest": { "$ref": "#/definitions/txRequest" }
+            }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "factory_get_default_address",
+      "description": "Get packaged default factory deployment for a chainId.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["chainId"],
+        "properties": {
+          "chainId": { "type": "integer", "minimum": 1, "description": "EVM chain id" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["result"],
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["deployment"],
+            "properties": {
+              "deployment": {
+                "anyOf": [
+                  { "type": "null" },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["chainId", "factory"],
+                    "properties": {
+                      "chainId": { "type": "integer", "minimum": 1 },
+                      "factory": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "agent_account_context_create",
+      "description": "Create and normalize a reusable agent account context that binds agent, vault, executor and default funding settings.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["agentId", "chainId", "vault", "authority", "executor"],
+        "properties": {
+          "agentId": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "chainId": { "type": "integer", "minimum": 1 },
+          "vault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "authority": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "executor": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "assetRegistryRef": { "type": "string", "minLength": 1, "maxLength": 512 },
+          "fundingPolicyRef": { "type": "string", "minLength": 1, "maxLength": 512 },
+          "defaults": { "$ref": "#/definitions/accountContextDefaults" },
+          "createdAt": { "type": "string", "minLength": 1 },
+          "updatedAt": { "type": "string", "minLength": 1 }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["accountContext"],
+            "properties": {
+              "accountContext": { "$ref": "#/definitions/accountContext" }
+            }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "agent_funding_policy_create",
+      "description": "Create and normalize a reusable funding policy for agent-managed asset transfers.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["policyId"],
+        "properties": {
+          "policyId": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "allowedTokenAddresses": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" }
+          },
+          "allowedRecipients": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" }
+          },
+          "maxAmountPerTx": { "type": "string", "pattern": "^[0-9]+$" },
+          "maxAmountPerWindow": { "type": "string", "pattern": "^[0-9]+$" },
+          "windowSeconds": { "type": "integer", "minimum": 1 },
+          "expiresAt": { "type": "string", "minLength": 1 },
+          "repeatable": { "type": "boolean" },
+          "createdAt": { "type": "string", "minLength": 1 },
+          "updatedAt": { "type": "string", "minLength": 1 }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["fundingPolicy"],
+            "properties": {
+              "fundingPolicy": { "$ref": "#/definitions/fundingPolicy" }
+            }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "vault_bootstrap",
+      "description": "High-level vault bootstrap orchestration that prepares or executes first-time vault setup and returns reusable config artifacts.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["asset", "name", "symbol", "salt"],
+        "properties": {
+          "chainId": { "type": "integer", "minimum": 1 },
+          "factory": {
+            "type": "string",
+            "pattern": "^0x[a-fA-F0-9]{40}$",
+            "description": "VaultFactory address (optional if configured server-side)"
+          },
+          "asset": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "symbol": { "type": "string", "minLength": 1, "maxLength": 16 },
+          "salt": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$", "description": "bytes32 salt" },
+          "signerAddress": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "mode": { "$ref": "#/definitions/vaultBootstrapMode" },
+          "authorityMode": { "$ref": "#/definitions/vaultBootstrapAuthorityMode" },
+          "authority": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "executor": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "createAccountContext": { "type": "boolean" },
+          "createFundingPolicy": { "type": "boolean" },
+          "accountContextOptions": { "$ref": "#/definitions/vaultBootstrapAccountContextOptions" },
+          "fundingPolicyOptions": { "$ref": "#/definitions/vaultBootstrapFundingPolicyOptions" },
+          "healthCheckBlockTag": {
+            "type": "string",
+            "description": "\"latest\", a decimal block number string, or a 0x-prefixed hex block number string"
+          },
+          "confirmations": { "type": "integer", "minimum": 1 },
+          "receiptTimeoutMs": { "type": "integer", "minimum": 1 },
+          "pollIntervalMs": { "type": "integer", "minimum": 1 }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": { "$ref": "#/definitions/vaultBootstrapResult" },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "agent_build_fund_and_action_plan",
+      "description": "Build a two-step agent plan that optionally funds a target account from the vault before running a follow-up action.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["accountContext", "fundingTarget", "fundingContext", "followUpAction"],
+        "properties": {
+          "accountContext": { "$ref": "#/definitions/accountContext" },
+          "fundingPolicy": { "$ref": "#/definitions/fundingPolicy" },
+          "fundingTarget": { "$ref": "#/definitions/fundAndActionTargetInput" },
+          "fundingContext": { "$ref": "#/definitions/fundAndActionFundingContext" },
+          "followUpAction": { "$ref": "#/definitions/followUpActionIntent" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": { "$ref": "#/definitions/fundAndActionPlanResult" },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "agent_fund_and_action_session_create",
+      "description": "Create a resumable execution session from a normalized fund-and-action plan.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["fundAndActionPlan"],
+        "properties": {
+          "fundAndActionPlan": { "$ref": "#/definitions/fundAndActionPlanResult" },
+          "sessionId": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "createdAt": { "type": "string", "minLength": 1 }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["session"],
+            "properties": {
+              "session": { "$ref": "#/definitions/fundAndActionExecutionSession" }
+            }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "agent_fund_and_action_session_apply_event",
+      "description": "Apply a state transition event to an existing fund-and-action execution session.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["session", "event"],
+        "properties": {
+          "session": { "$ref": "#/definitions/fundAndActionExecutionSession" },
+          "event": { "$ref": "#/definitions/fundAndActionExecutionEvent" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["session"],
+            "properties": {
+              "session": { "$ref": "#/definitions/fundAndActionExecutionSession" }
+            }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "agent_fund_and_action_session_next_step",
+      "description": "Resolve the normalized next execution task for a fund-and-action session without invoking external executors.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["session"],
+        "properties": {
+          "session": { "$ref": "#/definitions/fundAndActionExecutionSession" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["session", "task"],
+            "properties": {
+              "session": { "$ref": "#/definitions/fundAndActionExecutionSession" },
+              "task": { "$ref": "#/definitions/fundAndActionExecutionTask" }
+            }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "agent_follow_up_action_result_create",
+      "description": "Normalize a follow-up action execution result envelope without invoking the real downstream executor.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["followUpActionPlan", "status"],
+        "properties": {
+          "followUpActionPlan": { "$ref": "#/definitions/followUpActionPlan" },
+          "status": { "$ref": "#/definitions/followUpActionExecutionStatus" },
+          "updatedAt": { "type": "string", "minLength": 1 },
+          "startedAt": { "type": "string", "minLength": 1 },
+          "completedAt": { "type": "string", "minLength": 1 },
+          "attempt": { "type": "integer", "minimum": 1 },
+          "reference": { "$ref": "#/definitions/followUpActionExecutionReference" },
+          "output": { "type": "object" },
+          "error": { "$ref": "#/definitions/followUpActionExecutionError" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["followUpActionResult"],
+            "properties": {
+              "followUpActionResult": { "$ref": "#/definitions/followUpActionResult" }
+            }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "vault_asset_transfer_result_create",
+      "description": "Normalize an onchain asset transfer execution result envelope without invoking a real transaction sender.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["assetTransferPlan", "status"],
+        "properties": {
+          "assetTransferPlan": { "$ref": "#/definitions/assetTransferResultPlan" },
+          "status": { "$ref": "#/definitions/assetTransferExecutionStatus" },
+          "updatedAt": { "type": "string", "minLength": 1 },
+          "submittedAt": { "type": "string", "minLength": 1 },
+          "completedAt": { "type": "string", "minLength": 1 },
+          "attempt": { "type": "integer", "minimum": 1 },
+          "chainId": { "type": "integer", "minimum": 1 },
+          "txHash": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+          "receipt": { "$ref": "#/definitions/assetTransferReceipt" },
+          "output": { "type": "object" },
+          "error": { "$ref": "#/definitions/assetTransferExecutionError" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["assetTransferResult"],
+            "properties": {
+              "assetTransferResult": { "$ref": "#/definitions/assetTransferResult" }
+            }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "vault_health_check",
+      "description": "Read vault health/state snapshot at a specific block (or latest).",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["vault"],
+        "properties": {
+          "chainId": { "type": "integer", "minimum": 1 },
+          "vault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "blockTag": {
+            "type": "string",
+            "description": "\"latest\", a decimal block number string, or a 0x-prefixed hex block number string"
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "blockNumber",
+              "vault",
+              "mandateAuthority",
+              "authorityEpoch",
+              "pendingAuthority",
+              "nonceThreshold",
+              "totalAssets"
+            ],
+            "properties": {
+              "blockNumber": { "type": "integer", "minimum": 0 },
+              "vault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+              "mandateAuthority": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+              "authorityEpoch": { "type": "string", "pattern": "^[0-9]+$" },
+              "pendingAuthority": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+              "nonceThreshold": { "type": "string", "pattern": "^[0-9]+$" },
+              "totalAssets": { "type": "string", "pattern": "^[0-9]+$" }
+            }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "vault_check_nonce",
+      "description": "Check if a mandate nonce has been used for a given authority on a vault.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["vault", "authority", "nonce"],
+        "properties": {
+          "chainId": { "type": "integer", "minimum": 1 },
+          "vault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "authority": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "nonce": { "type": "string", "pattern": "^[0-9]+$" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["used"],
+            "properties": {
+              "used": { "type": "boolean" },
+              "usedAtBlock": { "type": "integer", "minimum": 0 },
+              "usedInTx": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" }
+            }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "mandate_check_revoked",
+      "description": "Check if a mandate hash has been revoked.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["vault", "mandateHash"],
+        "properties": {
+          "chainId": { "type": "integer", "minimum": 1 },
+          "vault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "mandateHash": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["revoked"],
+            "properties": { "revoked": { "type": "boolean" } }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "mandate_build_sign_request",
+      "description": "Build canonical mandate + typed data for authority to sign. MCP MUST NOT sign for authority.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "vault",
+          "executor",
+          "nonce",
+          "deadline",
+          "authorityEpoch",
+          "allowedAdaptersRoot",
+          "maxDrawdownBps",
+          "maxCumulativeDrawdownBps",
+          "actions",
+          "extensions"
+        ],
+        "properties": {
+          "chainId": { "type": "integer", "minimum": 1 },
+          "vault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "executor": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "nonce": { "type": "string", "pattern": "^[0-9]+$" },
+          "deadline": { "type": "string", "pattern": "^[0-9]+$" },
+          "authorityEpoch": { "type": "string", "pattern": "^[0-9]+$" },
+          "allowedAdaptersRoot": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+          "maxDrawdownBps": { "type": "string", "pattern": "^[0-9]+$" },
+          "maxCumulativeDrawdownBps": { "type": "string", "pattern": "^[0-9]+$" },
+          "payloadBinding": { "type": "string", "enum": ["actionsDigest", "none"], "default": "actionsDigest" },
+          "actions": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 32,
+            "items": { "$ref": "#/definitions/action" }
+          },
+          "extensions": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["typedData", "mandate", "mandateHash", "actionsDigest", "extensionsHash"],
+            "properties": {
+              "typedData": { "type": "object" },
+              "mandate": { "$ref": "#/definitions/mandate" },
+              "mandateHash": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+              "actionsDigest": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+              "extensionsHash": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" }
+            }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "vault_build_asset_transfer_plan",
+      "description": "Build a canonical ERC20 transfer plan via vault.execute without requiring signature/proofs yet.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "vault",
+          "executor",
+          "tokenAddress",
+          "to",
+          "amountRaw",
+          "nonce",
+          "deadline",
+          "authorityEpoch",
+          "allowedAdaptersRoot",
+          "maxDrawdownBps",
+          "maxCumulativeDrawdownBps"
+        ],
+        "properties": {
+          "chainId": { "type": "integer", "minimum": 1 },
+          "vault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "executor": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "tokenAddress": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "to": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "amountRaw": { "type": "string", "pattern": "^[0-9]+$" },
+          "nonce": { "type": "string", "pattern": "^[0-9]+$" },
+          "deadline": { "type": "string", "pattern": "^[0-9]+$" },
+          "authorityEpoch": { "type": "string", "pattern": "^[0-9]+$" },
+          "allowedAdaptersRoot": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+          "maxDrawdownBps": { "type": "string", "pattern": "^[0-9]+$" },
+          "maxCumulativeDrawdownBps": { "type": "string", "pattern": "^[0-9]+$" },
+          "payloadBinding": { "type": "string", "enum": ["actionsDigest", "none"], "default": "actionsDigest" },
+          "extensions": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" },
+          "symbol": { "type": "string", "minLength": 1, "maxLength": 32 },
+          "decimals": { "type": "integer", "minimum": 0, "maximum": 255 }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": { "$ref": "#/definitions/assetTransferPlanResult" },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "vault_check_asset_transfer_policy",
+      "description": "Preflight-check whether a proposed ERC20 transfer complies with a funding policy.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["fundingPolicy", "tokenAddress", "to", "amountRaw"],
+        "properties": {
+          "fundingPolicy": { "$ref": "#/definitions/fundingPolicy" },
+          "tokenAddress": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "to": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "amountRaw": { "type": "string", "pattern": "^[0-9]+$" },
+          "now": { "type": "string", "minLength": 1 },
+          "currentSpentInWindow": { "type": "string", "pattern": "^[0-9]+$" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": { "$ref": "#/definitions/policyCheckResult" },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "vault_build_asset_transfer_plan_from_context",
+      "description": "Build a canonical ERC20 transfer plan using a pre-bound agent account context and its defaults.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["accountContext", "tokenAddress", "to", "amountRaw", "nonce", "deadline", "authorityEpoch"],
+        "properties": {
+          "accountContext": { "$ref": "#/definitions/accountContext" },
+          "fundingPolicy": { "$ref": "#/definitions/fundingPolicy" },
+          "tokenAddress": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "to": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "amountRaw": { "type": "string", "pattern": "^[0-9]+$" },
+          "nonce": { "type": "string", "pattern": "^[0-9]+$" },
+          "deadline": { "type": "string", "pattern": "^[0-9]+$" },
+          "authorityEpoch": { "type": "string", "pattern": "^[0-9]+$" },
+          "allowedAdaptersRoot": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+          "maxDrawdownBps": { "type": "string", "pattern": "^[0-9]+$" },
+          "maxCumulativeDrawdownBps": { "type": "string", "pattern": "^[0-9]+$" },
+          "payloadBinding": { "type": "string", "enum": ["actionsDigest", "none"] },
+          "extensions": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" },
+          "symbol": { "type": "string", "minLength": 1, "maxLength": 32 },
+          "decimals": { "type": "integer", "minimum": 0, "maximum": 255 },
+          "policyEvaluation": { "$ref": "#/definitions/policyEvaluationContext" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": { "$ref": "#/definitions/assetTransferPlanWithContextResult" },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "vault_simulate_asset_transfer",
+      "description": "Build and simulate an ERC20 transfer via vault.execute with provided signature and adapter proofs.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "vault",
+          "executor",
+          "tokenAddress",
+          "to",
+          "amountRaw",
+          "nonce",
+          "deadline",
+          "authorityEpoch",
+          "allowedAdaptersRoot",
+          "maxDrawdownBps",
+          "maxCumulativeDrawdownBps",
+          "signature",
+          "adapterProofs"
+        ],
+        "properties": {
+          "chainId": { "type": "integer", "minimum": 1 },
+          "vault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "executor": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "from": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "tokenAddress": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "to": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "amountRaw": { "type": "string", "pattern": "^[0-9]+$" },
+          "nonce": { "type": "string", "pattern": "^[0-9]+$" },
+          "deadline": { "type": "string", "pattern": "^[0-9]+$" },
+          "authorityEpoch": { "type": "string", "pattern": "^[0-9]+$" },
+          "allowedAdaptersRoot": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+          "maxDrawdownBps": { "type": "string", "pattern": "^[0-9]+$" },
+          "maxCumulativeDrawdownBps": { "type": "string", "pattern": "^[0-9]+$" },
+          "payloadBinding": { "type": "string", "enum": ["actionsDigest", "none"], "default": "actionsDigest" },
+          "extensions": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" },
+          "symbol": { "type": "string", "minLength": 1, "maxLength": 32 },
+          "decimals": { "type": "integer", "minimum": 0, "maximum": 255 },
+          "signature": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" },
+          "adapterProofs": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/bytes32Array" } }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": { "$ref": "#/definitions/assetTransferSimulateResult" },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "vault_simulate_asset_transfer_from_context",
+      "description": "Build and simulate an ERC20 transfer using a pre-bound agent account context and provided signature/proofs.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "accountContext",
+          "fundingPolicy",
+          "tokenAddress",
+          "to",
+          "amountRaw",
+          "nonce",
+          "deadline",
+          "authorityEpoch",
+          "signature",
+          "adapterProofs"
+        ],
+        "properties": {
+          "accountContext": { "$ref": "#/definitions/accountContext" },
+          "fundingPolicy": { "$ref": "#/definitions/fundingPolicy" },
+          "from": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "tokenAddress": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "to": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "amountRaw": { "type": "string", "pattern": "^[0-9]+$" },
+          "nonce": { "type": "string", "pattern": "^[0-9]+$" },
+          "deadline": { "type": "string", "pattern": "^[0-9]+$" },
+          "authorityEpoch": { "type": "string", "pattern": "^[0-9]+$" },
+          "allowedAdaptersRoot": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+          "maxDrawdownBps": { "type": "string", "pattern": "^[0-9]+$" },
+          "maxCumulativeDrawdownBps": { "type": "string", "pattern": "^[0-9]+$" },
+          "payloadBinding": { "type": "string", "enum": ["actionsDigest", "none"] },
+          "extensions": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" },
+          "symbol": { "type": "string", "minLength": 1, "maxLength": 32 },
+          "decimals": { "type": "integer", "minimum": 0, "maximum": 255 },
+          "policyEvaluation": { "$ref": "#/definitions/policyEvaluationContext" },
+          "signature": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" },
+          "adapterProofs": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/bytes32Array" } }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": { "$ref": "#/definitions/assetTransferSimulateWithContextResult" },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "vault_prepare_asset_transfer",
+      "description": "Build and prepare an ERC20 transfer via vault.execute with provided signature and adapter proofs.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "vault",
+          "executor",
+          "tokenAddress",
+          "to",
+          "amountRaw",
+          "nonce",
+          "deadline",
+          "authorityEpoch",
+          "allowedAdaptersRoot",
+          "maxDrawdownBps",
+          "maxCumulativeDrawdownBps",
+          "signature",
+          "adapterProofs"
+        ],
+        "properties": {
+          "chainId": { "type": "integer", "minimum": 1 },
+          "vault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "executor": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "from": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "tokenAddress": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "to": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "amountRaw": { "type": "string", "pattern": "^[0-9]+$" },
+          "nonce": { "type": "string", "pattern": "^[0-9]+$" },
+          "deadline": { "type": "string", "pattern": "^[0-9]+$" },
+          "authorityEpoch": { "type": "string", "pattern": "^[0-9]+$" },
+          "allowedAdaptersRoot": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+          "maxDrawdownBps": { "type": "string", "pattern": "^[0-9]+$" },
+          "maxCumulativeDrawdownBps": { "type": "string", "pattern": "^[0-9]+$" },
+          "payloadBinding": { "type": "string", "enum": ["actionsDigest", "none"], "default": "actionsDigest" },
+          "extensions": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" },
+          "symbol": { "type": "string", "minLength": 1, "maxLength": 32 },
+          "decimals": { "type": "integer", "minimum": 0, "maximum": 255 },
+          "signature": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" },
+          "adapterProofs": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/bytes32Array" } }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": { "$ref": "#/definitions/assetTransferPrepareResult" },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "vault_prepare_asset_transfer_from_context",
+      "description": "Build and prepare an ERC20 transfer using a pre-bound agent account context and provided signature/proofs.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "accountContext",
+          "fundingPolicy",
+          "tokenAddress",
+          "to",
+          "amountRaw",
+          "nonce",
+          "deadline",
+          "authorityEpoch",
+          "signature",
+          "adapterProofs"
+        ],
+        "properties": {
+          "accountContext": { "$ref": "#/definitions/accountContext" },
+          "fundingPolicy": { "$ref": "#/definitions/fundingPolicy" },
+          "from": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "tokenAddress": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "to": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "amountRaw": { "type": "string", "pattern": "^[0-9]+$" },
+          "nonce": { "type": "string", "pattern": "^[0-9]+$" },
+          "deadline": { "type": "string", "pattern": "^[0-9]+$" },
+          "authorityEpoch": { "type": "string", "pattern": "^[0-9]+$" },
+          "allowedAdaptersRoot": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+          "maxDrawdownBps": { "type": "string", "pattern": "^[0-9]+$" },
+          "maxCumulativeDrawdownBps": { "type": "string", "pattern": "^[0-9]+$" },
+          "payloadBinding": { "type": "string", "enum": ["actionsDigest", "none"] },
+          "extensions": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" },
+          "symbol": { "type": "string", "minLength": 1, "maxLength": 32 },
+          "decimals": { "type": "integer", "minimum": 0, "maximum": 255 },
+          "policyEvaluation": { "$ref": "#/definitions/policyEvaluationContext" },
+          "signature": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" },
+          "adapterProofs": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/bytes32Array" } }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": { "$ref": "#/definitions/assetTransferPrepareWithContextResult" },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "vault_execute_asset_transfer",
+      "description": "Build, prepare, broadcast and normalize an ERC20 transfer via vault.execute using the runtime executor signer.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "vault",
+          "executor",
+          "tokenAddress",
+          "to",
+          "amountRaw",
+          "nonce",
+          "deadline",
+          "authorityEpoch",
+          "allowedAdaptersRoot",
+          "maxDrawdownBps",
+          "maxCumulativeDrawdownBps",
+          "signature",
+          "adapterProofs"
+        ],
+        "properties": {
+          "chainId": { "type": "integer", "minimum": 1 },
+          "vault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "executor": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "from": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "tokenAddress": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "to": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "amountRaw": { "type": "string", "pattern": "^[0-9]+$" },
+          "nonce": { "type": "string", "pattern": "^[0-9]+$" },
+          "deadline": { "type": "string", "pattern": "^[0-9]+$" },
+          "authorityEpoch": { "type": "string", "pattern": "^[0-9]+$" },
+          "allowedAdaptersRoot": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+          "maxDrawdownBps": { "type": "string", "pattern": "^[0-9]+$" },
+          "maxCumulativeDrawdownBps": { "type": "string", "pattern": "^[0-9]+$" },
+          "payloadBinding": { "type": "string", "enum": ["actionsDigest", "none"], "default": "actionsDigest" },
+          "extensions": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" },
+          "symbol": { "type": "string", "minLength": 1, "maxLength": 32 },
+          "decimals": { "type": "integer", "minimum": 0, "maximum": 255 },
+          "signature": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" },
+          "adapterProofs": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/bytes32Array" } },
+          "confirmations": { "type": "integer", "minimum": 0 },
+          "receiptTimeoutMs": { "type": "integer", "minimum": 1 },
+          "pollIntervalMs": { "type": "integer", "minimum": 1 }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": { "$ref": "#/definitions/assetTransferExecuteResult" },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "vault_execute_asset_transfer_from_context",
+      "description": "Build, prepare, broadcast and normalize an ERC20 transfer using a pre-bound agent account context and runtime executor signer.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "accountContext",
+          "fundingPolicy",
+          "tokenAddress",
+          "to",
+          "amountRaw",
+          "nonce",
+          "deadline",
+          "authorityEpoch",
+          "signature",
+          "adapterProofs"
+        ],
+        "properties": {
+          "accountContext": { "$ref": "#/definitions/accountContext" },
+          "fundingPolicy": { "$ref": "#/definitions/fundingPolicy" },
+          "from": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "tokenAddress": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "to": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "amountRaw": { "type": "string", "pattern": "^[0-9]+$" },
+          "nonce": { "type": "string", "pattern": "^[0-9]+$" },
+          "deadline": { "type": "string", "pattern": "^[0-9]+$" },
+          "authorityEpoch": { "type": "string", "pattern": "^[0-9]+$" },
+          "allowedAdaptersRoot": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+          "maxDrawdownBps": { "type": "string", "pattern": "^[0-9]+$" },
+          "maxCumulativeDrawdownBps": { "type": "string", "pattern": "^[0-9]+$" },
+          "payloadBinding": { "type": "string", "enum": ["actionsDigest", "none"] },
+          "extensions": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" },
+          "symbol": { "type": "string", "minLength": 1, "maxLength": 32 },
+          "decimals": { "type": "integer", "minimum": 0, "maximum": 255 },
+          "policyEvaluation": { "$ref": "#/definitions/policyEvaluationContext" },
+          "signature": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" },
+          "adapterProofs": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/bytes32Array" } },
+          "confirmations": { "type": "integer", "minimum": 0 },
+          "receiptTimeoutMs": { "type": "integer", "minimum": 1 },
+          "pollIntervalMs": { "type": "integer", "minimum": 1 }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": { "$ref": "#/definitions/assetTransferExecuteWithContextResult" },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "vault_simulate_execute",
+      "description": "Simulate execute call (eth_call) with given mandate/signature/actions/proofs and executor as from.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["vault", "from", "mandate", "signature", "actions", "adapterProofs", "extensions"],
+        "properties": {
+          "chainId": { "type": "integer", "minimum": 1 },
+          "vault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "from": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "mandate": { "$ref": "#/definitions/mandate" },
+          "signature": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" },
+          "actions": { "type": "array", "minItems": 1, "maxItems": 32, "items": { "$ref": "#/definitions/action" } },
+          "adapterProofs": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/bytes32Array" } },
+          "extensions": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["ok", "blockNumber"],
+            "properties": {
+              "ok": { "type": "boolean" },
+              "blockNumber": { "type": "integer", "minimum": 0 },
+              "preAssets": { "type": "string", "pattern": "^[0-9]+$" },
+              "postAssets": { "type": "string", "pattern": "^[0-9]+$" },
+              "revertDecoded": { "type": "object" }
+            }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "vault_execute_prepare",
+      "description": "Prepare execute transaction request (to/data/value=0).",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["vault", "from", "mandate", "signature", "actions", "adapterProofs", "extensions"],
+        "properties": {
+          "chainId": { "type": "integer", "minimum": 1 },
+          "vault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "from": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "mandate": { "$ref": "#/definitions/mandate" },
+          "signature": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" },
+          "actions": { "type": "array", "minItems": 1, "maxItems": 32, "items": { "$ref": "#/definitions/action" } },
+          "adapterProofs": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/bytes32Array" } },
+          "extensions": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["txRequest"],
+            "properties": {
+              "txRequest": { "$ref": "#/definitions/txRequest" },
+              "audit": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "mandateHash": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+                  "actionsDigest": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" }
+                }
+              }
+            }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "vault_revoke_mandate_prepare",
+      "description": "Prepare revokeMandate transaction request (authority-only).",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["vault", "from", "mandateHash"],
+        "properties": {
+          "chainId": { "type": "integer", "minimum": 1 },
+          "vault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "from": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "mandateHash": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["txRequest"],
+            "properties": { "txRequest": { "$ref": "#/definitions/txRequest" } }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    },
+    {
+      "name": "vault_invalidate_nonce_prepare",
+      "description": "Prepare invalidateNonce transaction request (authority-only).",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["vault", "from", "nonce"],
+        "properties": {
+          "chainId": { "type": "integer", "minimum": 1 },
+          "vault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "from": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+          "nonce": { "type": "string", "pattern": "^[0-9]+$" }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["txRequest"],
+            "properties": { "txRequest": { "$ref": "#/definitions/txRequest" } }
+          },
+          "error": { "$ref": "#/definitions/toolError" }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "toolError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Z0-9_]+$" },
+        "message": { "type": "string", "minLength": 1 },
+        "details": { "type": "object" },
+        "suggestion": { "type": "string" }
+      }
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["adapter", "value", "data"],
+      "properties": {
+        "adapter": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "value": { "type": "string", "pattern": "^[0-9]+$" },
+        "data": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" }
+      }
+    },
+    "erc20Call": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["to", "data", "value"],
+      "properties": {
+        "to": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "data": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" },
+        "value": { "type": "string", "pattern": "^[0-9]+$" }
+      }
+    },
+    "accountContextDefaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allowedAdaptersRoot": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+        "maxDrawdownBps": { "type": "string", "pattern": "^[0-9]+$" },
+        "maxCumulativeDrawdownBps": { "type": "string", "pattern": "^[0-9]+$" },
+        "payloadBinding": { "type": "string", "enum": ["actionsDigest", "none"] },
+        "extensions": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" }
+      }
+    },
+    "accountContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agentId", "chainId", "vault", "authority", "executor", "createdAt", "updatedAt"],
+      "properties": {
+        "agentId": { "type": "string", "minLength": 1 },
+        "chainId": { "type": "integer", "minimum": 1 },
+        "vault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "authority": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "executor": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "assetRegistryRef": { "type": "string" },
+        "fundingPolicyRef": { "type": "string" },
+        "defaults": { "$ref": "#/definitions/accountContextDefaults" },
+        "createdAt": { "type": "string", "minLength": 1 },
+        "updatedAt": { "type": "string", "minLength": 1 }
+      }
+    },
+    "fundingPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policyId", "createdAt", "updatedAt"],
+      "properties": {
+        "policyId": { "type": "string", "minLength": 1 },
+        "allowedTokenAddresses": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" }
+        },
+        "allowedRecipients": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" }
+        },
+        "maxAmountPerTx": { "type": "string", "pattern": "^[0-9]+$" },
+        "maxAmountPerWindow": { "type": "string", "pattern": "^[0-9]+$" },
+        "windowSeconds": { "type": "integer", "minimum": 1 },
+        "expiresAt": { "type": "string" },
+        "repeatable": { "type": "boolean" },
+        "createdAt": { "type": "string", "minLength": 1 },
+        "updatedAt": { "type": "string", "minLength": 1 }
+      }
+    },
+    "vaultBootstrapMode": {
+      "type": "string",
+      "enum": ["plan", "execute"]
+    },
+    "vaultBootstrapAuthorityMode": {
+      "type": "string",
+      "enum": ["single_key", "dual_key"]
+    },
+    "vaultBootstrapReceiptStatus": {
+      "type": "string",
+      "enum": ["success", "reverted", "timeout"]
+    },
+    "vaultBootstrapDeploymentStatus": {
+      "type": "string",
+      "enum": ["planned", "submitted", "confirmed", "reverted", "receipt_unknown"]
+    },
+    "vaultBootstrapAuthorityConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "authority", "executor"],
+      "properties": {
+        "mode": { "$ref": "#/definitions/vaultBootstrapAuthorityMode" },
+        "authority": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "executor": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" }
+      }
+    },
+    "vaultBootstrapAccountContextOptions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "agentId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "assetRegistryRef": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "fundingPolicyRef": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "defaults": { "$ref": "#/definitions/accountContextDefaults" },
+        "createdAt": { "type": "string", "minLength": 1 },
+        "updatedAt": { "type": "string", "minLength": 1 }
+      }
+    },
+    "vaultBootstrapFundingPolicyOptions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "policyId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "allowedTokenAddresses": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" }
+        },
+        "allowedRecipients": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" }
+        },
+        "maxAmountPerTx": { "type": "string", "pattern": "^[0-9]+$" },
+        "maxAmountPerWindow": { "type": "string", "pattern": "^[0-9]+$" },
+        "windowSeconds": { "type": "integer", "minimum": 1 },
+        "expiresAt": { "type": "string", "minLength": 1 },
+        "repeatable": { "type": "boolean" },
+        "createdAt": { "type": "string", "minLength": 1 },
+        "updatedAt": { "type": "string", "minLength": 1 }
+      }
+    },
+    "vaultBootstrapCreateTx": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": {
+        "mode": { "$ref": "#/definitions/vaultBootstrapMode" },
+        "txRequest": { "$ref": "#/definitions/txRequest" },
+        "txHash": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+        "receiptStatus": { "$ref": "#/definitions/vaultBootstrapReceiptStatus" },
+        "blockNumber": { "type": "integer", "minimum": 0 },
+        "confirmations": { "type": "integer", "minimum": 0 },
+        "receipt": { "type": "object" }
+      }
+    },
+    "vaultBootstrapResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "chainId",
+        "mode",
+        "factory",
+        "asset",
+        "signerAddress",
+        "predictedVault",
+        "deployedVault",
+        "alreadyDeployed",
+        "deploymentStatus",
+        "authorityConfig",
+        "envBlock",
+        "configBlock"
+      ],
+      "properties": {
+        "chainId": { "type": "integer", "minimum": 1 },
+        "mode": { "$ref": "#/definitions/vaultBootstrapMode" },
+        "factory": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "asset": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "signerAddress": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "predictedVault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "deployedVault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "alreadyDeployed": { "type": "boolean" },
+        "deploymentStatus": { "$ref": "#/definitions/vaultBootstrapDeploymentStatus" },
+        "authorityConfig": { "$ref": "#/definitions/vaultBootstrapAuthorityConfig" },
+        "createTx": { "$ref": "#/definitions/vaultBootstrapCreateTx" },
+        "vaultHealth": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "blockNumber",
+            "vault",
+            "mandateAuthority",
+            "authorityEpoch",
+            "pendingAuthority",
+            "nonceThreshold",
+            "totalAssets"
+          ],
+          "properties": {
+            "blockNumber": { "type": "integer", "minimum": 0 },
+            "vault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+            "mandateAuthority": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+            "authorityEpoch": { "type": "string", "pattern": "^[0-9]+$" },
+            "pendingAuthority": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+            "nonceThreshold": { "type": "string", "pattern": "^[0-9]+$" },
+            "totalAssets": { "type": "string", "pattern": "^[0-9]+$" }
+          }
+        },
+        "accountContext": { "$ref": "#/definitions/accountContext" },
+        "fundingPolicy": { "$ref": "#/definitions/fundingPolicy" },
+        "envBlock": { "type": "string", "minLength": 1 },
+        "configBlock": { "type": "string", "minLength": 1 }
+      }
+    },
+    "policyEvaluationContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "now": { "type": "string", "minLength": 1 },
+        "currentSpentInWindow": { "type": "string", "pattern": "^[0-9]+$" }
+      }
+    },
+    "policyViolation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "field", "message"],
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Z0-9_]+$" },
+        "field": { "type": "string", "minLength": 1 },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    },
+    "policyCheckResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed", "fundingPolicy", "violations"],
+      "properties": {
+        "allowed": { "type": "boolean" },
+        "fundingPolicy": { "$ref": "#/definitions/fundingPolicy" },
+        "violations": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/policyViolation" }
+        }
+      }
+    },
+    "executeContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["signature", "adapterProofs"],
+      "properties": {
+        "from": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "signature": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" },
+        "adapterProofs": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/bytes32Array" } }
+      }
+    },
+    "executeBaseInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["vault", "from", "mandate", "signature", "actions", "adapterProofs", "extensions"],
+      "properties": {
+        "chainId": { "type": "integer", "minimum": 1 },
+        "vault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "from": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "mandate": { "$ref": "#/definitions/mandate" },
+        "signature": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" },
+        "actions": { "type": "array", "minItems": 1, "maxItems": 32, "items": { "$ref": "#/definitions/action" } },
+        "adapterProofs": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/bytes32Array" } },
+        "extensions": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" }
+      }
+    },
+    "fundAndActionTargetInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "recipient", "tokenAddress", "requiredAmountRaw", "currentBalanceRaw", "balanceSnapshot"],
+      "properties": {
+        "label": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "recipient": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "tokenAddress": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "requiredAmountRaw": { "type": "string", "pattern": "^[0-9]+$" },
+        "currentBalanceRaw": { "type": "string", "pattern": "^[0-9]+$" },
+        "balanceSnapshot": { "$ref": "#/definitions/fundAndActionBalanceSnapshot" },
+        "symbol": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "decimals": { "type": "integer", "minimum": 0, "maximum": 255 }
+      }
+    },
+    "fundAndActionTargetResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "recipient", "tokenAddress", "requiredAmountRaw", "currentBalanceRaw", "balanceSnapshot", "fundingShortfallRaw"],
+      "properties": {
+        "label": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "recipient": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "tokenAddress": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "requiredAmountRaw": { "type": "string", "pattern": "^[0-9]+$" },
+        "currentBalanceRaw": { "type": "string", "pattern": "^[0-9]+$" },
+        "balanceSnapshot": { "$ref": "#/definitions/fundAndActionBalanceSnapshot" },
+        "fundingShortfallRaw": { "type": "string", "pattern": "^[0-9]+$" },
+        "symbol": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "decimals": { "type": "integer", "minimum": 0, "maximum": 255 }
+      }
+    },
+    "fundAndActionBalanceSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["snapshotAt", "maxStalenessSeconds"],
+      "properties": {
+        "snapshotAt": { "type": "string", "minLength": 1 },
+        "maxStalenessSeconds": { "type": "integer", "minimum": 1 },
+        "observedAtBlock": { "type": "string", "pattern": "^[0-9]+$" },
+        "source": { "type": "string", "minLength": 1, "maxLength": 128 }
+      }
+    },
+    "followUpActionIntent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "target": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "payload": { "type": "object" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": { "const": "predict.createOrder" }
+            },
+            "required": ["kind"]
+          },
+          "then": {
+            "required": ["target", "payload"],
+            "properties": {
+              "target": { "type": "string", "minLength": 1, "maxLength": 256 },
+              "payload": { "$ref": "#/definitions/predictCreateOrderPayload" }
+            }
+          }
+        }
+      ]
+    },
+    "predictCreateOrderPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["marketId", "collateralTokenAddress", "collateralAmountRaw"],
+      "properties": {
+        "marketId": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "collateralTokenAddress": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "collateralAmountRaw": { "type": "string", "pattern": "^[0-9]+$" },
+        "orderSide": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "outcomeId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "clientOrderId": { "type": "string", "minLength": 1, "maxLength": 128 }
+      }
+    },
+    "followUpActionPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "executionMode", "summary"],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "target": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "executionMode": { "type": "string", "enum": ["offchain-api", "custom"] },
+        "summary": { "type": "string", "minLength": 1 },
+        "assetRequirement": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["tokenAddress", "amountRaw"],
+          "properties": {
+            "tokenAddress": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+            "amountRaw": { "type": "string", "pattern": "^[0-9]+$" }
+          }
+        },
+        "payload": { "type": "object" }
+      }
+    },
+    "followUpActionExecutionStatus": {
+      "type": "string",
+      "enum": ["pending", "submitted", "succeeded", "failed", "skipped"]
+    },
+    "followUpActionExecutionReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "value"],
+      "properties": {
+        "type": { "type": "string", "enum": ["requestId", "orderId", "txHash", "custom"] },
+        "value": { "type": "string", "minLength": 1, "maxLength": 256 }
+      }
+    },
+    "followUpActionExecutionError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "message": { "type": "string", "minLength": 1 },
+        "retriable": { "type": "boolean" },
+        "details": { "type": "object" }
+      }
+    },
+    "followUpActionResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "executionMode", "status", "summary", "updatedAt", "attempt", "plan"],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "target": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "executionMode": { "type": "string", "enum": ["offchain-api", "custom"] },
+        "status": { "$ref": "#/definitions/followUpActionExecutionStatus" },
+        "summary": { "type": "string", "minLength": 1 },
+        "updatedAt": { "type": "string", "minLength": 1 },
+        "startedAt": { "type": "string", "minLength": 1 },
+        "completedAt": { "type": "string", "minLength": 1 },
+        "attempt": { "type": "integer", "minimum": 1 },
+        "reference": { "$ref": "#/definitions/followUpActionExecutionReference" },
+        "output": { "type": "object" },
+        "error": { "$ref": "#/definitions/followUpActionExecutionError" },
+        "plan": { "$ref": "#/definitions/followUpActionPlan" }
+      }
+    },
+    "fundAndActionExecutionSessionStatus": {
+      "type": "string",
+      "enum": ["pendingFunding", "pendingFollowUp", "succeeded", "failed", "skipped"]
+    },
+    "fundAndActionExecutionCurrentStep": {
+      "type": "string",
+      "enum": ["fundTargetAccount", "followUpAction", "none"]
+    },
+    "fundAndActionFundingStepStatus": {
+      "type": "string",
+      "enum": ["pending", "submitted", "succeeded", "failed", "skipped"]
+    },
+    "fundAndActionFollowUpStepStatus": {
+      "type": "string",
+      "enum": ["pending", "submitted", "succeeded", "failed", "skipped"]
+    },
+    "fundAndActionFundingStepExecution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "status", "summary", "updatedAt"],
+      "properties": {
+        "required": { "type": "boolean" },
+        "status": { "$ref": "#/definitions/fundAndActionFundingStepStatus" },
+        "summary": { "type": "string", "minLength": 1 },
+        "updatedAt": { "type": "string", "minLength": 1 },
+        "result": { "$ref": "#/definitions/assetTransferResult" }
+      }
+    },
+    "fundAndActionFollowUpStepExecution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "summary", "updatedAt"],
+      "properties": {
+        "status": { "$ref": "#/definitions/fundAndActionFollowUpStepStatus" },
+        "summary": { "type": "string", "minLength": 1 },
+        "updatedAt": { "type": "string", "minLength": 1 },
+        "reference": { "$ref": "#/definitions/followUpActionExecutionReference" },
+        "result": { "$ref": "#/definitions/followUpActionResult" }
+      }
+    },
+    "fundAndActionExecutionSession": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sessionId",
+        "status",
+        "currentStep",
+        "createdAt",
+        "updatedAt",
+        "fundAndActionPlan",
+        "fundingStep",
+        "followUpStep"
+      ],
+      "properties": {
+        "sessionId": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "status": { "$ref": "#/definitions/fundAndActionExecutionSessionStatus" },
+        "currentStep": { "$ref": "#/definitions/fundAndActionExecutionCurrentStep" },
+        "createdAt": { "type": "string", "minLength": 1 },
+        "updatedAt": { "type": "string", "minLength": 1 },
+        "fundAndActionPlan": { "$ref": "#/definitions/fundAndActionPlanResult" },
+        "fundingStep": { "$ref": "#/definitions/fundAndActionFundingStepExecution" },
+        "followUpStep": { "$ref": "#/definitions/fundAndActionFollowUpStepExecution" }
+      }
+    },
+    "fundAndActionExecutionEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "fundingSubmitted",
+            "fundingConfirmed",
+            "fundingFailed",
+            "followUpSubmitted",
+            "followUpResultReceived"
+          ]
+        },
+        "updatedAt": { "type": "string", "minLength": 1 },
+        "reference": { "$ref": "#/definitions/followUpActionExecutionReference" },
+        "assetTransferResult": { "$ref": "#/definitions/assetTransferResult" },
+        "followUpActionResult": { "$ref": "#/definitions/followUpActionResult" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": { "const": "fundingSubmitted" }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "required": ["assetTransferResult"],
+            "properties": {
+              "assetTransferResult": { "$ref": "#/definitions/assetTransferResult" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": { "const": "fundingConfirmed" }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "required": ["assetTransferResult"],
+            "properties": {
+              "assetTransferResult": { "$ref": "#/definitions/assetTransferResult" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": { "const": "fundingFailed" }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "required": ["assetTransferResult"],
+            "properties": {
+              "assetTransferResult": { "$ref": "#/definitions/assetTransferResult" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": { "const": "followUpResultReceived" }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "required": ["followUpActionResult"],
+            "properties": {
+              "followUpActionResult": { "$ref": "#/definitions/followUpActionResult" }
+            }
+          }
+        }
+      ]
+    },
+    "fundAndActionExecutionTask": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "summary"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "submitFunding",
+            "pollFundingResult",
+            "submitFollowUp",
+            "pollFollowUpResult",
+            "completed"
+          ]
+        },
+        "summary": { "type": "string", "minLength": 1 },
+        "fundingPlan": { "$ref": "#/definitions/assetTransferExecutionPlanWithContextResult" },
+        "assetTransferResult": { "$ref": "#/definitions/assetTransferResult" },
+        "followUpActionPlan": { "$ref": "#/definitions/followUpActionPlan" },
+        "reference": { "$ref": "#/definitions/followUpActionExecutionReference" },
+        "status": { "$ref": "#/definitions/fundAndActionExecutionSessionStatus" },
+        "result": { "$ref": "#/definitions/followUpActionResult" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": { "const": "submitFunding" }
+            },
+            "required": ["kind"]
+          },
+          "then": {
+            "required": ["fundingPlan"],
+            "properties": {
+              "fundingPlan": { "$ref": "#/definitions/assetTransferExecutionPlanWithContextResult" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": { "const": "pollFundingResult" }
+            },
+            "required": ["kind"]
+          },
+          "then": {
+            "required": ["assetTransferResult"],
+            "properties": {
+              "assetTransferResult": { "$ref": "#/definitions/assetTransferResult" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": { "const": "submitFollowUp" }
+            },
+            "required": ["kind"]
+          },
+          "then": {
+            "required": ["followUpActionPlan"],
+            "properties": {
+              "followUpActionPlan": { "$ref": "#/definitions/followUpActionPlan" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": { "const": "completed" }
+            },
+            "required": ["kind"]
+          },
+          "then": {
+            "required": ["status"],
+            "properties": {
+              "status": { "$ref": "#/definitions/fundAndActionExecutionSessionStatus" }
+            }
+          }
+        }
+      ]
+    },
+    "fundAndActionFundingContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nonce", "deadline", "authorityEpoch"],
+      "properties": {
+        "nonce": { "type": "string", "pattern": "^[0-9]+$" },
+        "deadline": { "type": "string", "pattern": "^[0-9]+$" },
+        "authorityEpoch": { "type": "string", "pattern": "^[0-9]+$" },
+        "allowedAdaptersRoot": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+        "maxDrawdownBps": { "type": "string", "pattern": "^[0-9]+$" },
+        "maxCumulativeDrawdownBps": { "type": "string", "pattern": "^[0-9]+$" },
+        "payloadBinding": { "type": "string", "enum": ["actionsDigest", "none"] },
+        "extensions": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" },
+        "policyEvaluation": { "$ref": "#/definitions/policyEvaluationContext" },
+        "executeContext": { "$ref": "#/definitions/executeContext" }
+      }
+    },
+    "fundAndActionStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "status", "summary"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["fundTargetAccount", "followUpAction"] },
+        "status": { "type": "string", "enum": ["required", "skipped", "pending"] },
+        "summary": { "type": "string", "minLength": 1 }
+      }
+    },
+    "assetTransferSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "tokenAddress", "to", "amountRaw"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["erc20Transfer"] },
+        "tokenAddress": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "to": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "amountRaw": { "type": "string", "pattern": "^[0-9]+$" },
+        "symbol": { "type": "string" },
+        "decimals": { "type": "integer", "minimum": 0, "maximum": 255 }
+      }
+    },
+    "signRequestResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["typedData", "mandate", "mandateHash", "actionsDigest", "extensionsHash"],
+      "properties": {
+        "typedData": { "type": "object" },
+        "mandate": { "$ref": "#/definitions/mandate" },
+        "mandateHash": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+        "actionsDigest": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+        "extensionsHash": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" }
+      }
+    },
+    "simulateResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "blockNumber"],
+      "properties": {
+        "ok": { "type": "boolean" },
+        "blockNumber": { "type": "integer", "minimum": 0 },
+        "preAssets": { "type": "string", "pattern": "^[0-9]+$" },
+        "postAssets": { "type": "string", "pattern": "^[0-9]+$" },
+        "revertDecoded": { "type": "object" }
+      }
+    },
+    "assetTransferPlanResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "erc20Call", "humanReadableSummary", "signRequest"],
+      "properties": {
+        "action": { "$ref": "#/definitions/action" },
+        "erc20Call": { "$ref": "#/definitions/erc20Call" },
+        "humanReadableSummary": { "$ref": "#/definitions/assetTransferSummary" },
+        "signRequest": { "$ref": "#/definitions/signRequestResult" }
+      }
+    },
+    "assetTransferPlanWithContextResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accountContext", "action", "erc20Call", "humanReadableSummary", "signRequest"],
+      "properties": {
+        "accountContext": { "$ref": "#/definitions/accountContext" },
+        "action": { "$ref": "#/definitions/action" },
+        "erc20Call": { "$ref": "#/definitions/erc20Call" },
+        "humanReadableSummary": { "$ref": "#/definitions/assetTransferSummary" },
+        "signRequest": { "$ref": "#/definitions/signRequestResult" },
+        "policyCheck": { "$ref": "#/definitions/policyCheckResult" }
+      }
+    },
+    "assetTransferSimulateResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "erc20Call", "humanReadableSummary", "signRequest", "simulate"],
+      "properties": {
+        "action": { "$ref": "#/definitions/action" },
+        "erc20Call": { "$ref": "#/definitions/erc20Call" },
+        "humanReadableSummary": { "$ref": "#/definitions/assetTransferSummary" },
+        "signRequest": { "$ref": "#/definitions/signRequestResult" },
+        "simulate": { "$ref": "#/definitions/simulateResult" }
+      }
+    },
+    "assetTransferSimulateWithContextResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accountContext", "action", "erc20Call", "humanReadableSummary", "signRequest", "simulate"],
+      "properties": {
+        "accountContext": { "$ref": "#/definitions/accountContext" },
+        "action": { "$ref": "#/definitions/action" },
+        "erc20Call": { "$ref": "#/definitions/erc20Call" },
+        "humanReadableSummary": { "$ref": "#/definitions/assetTransferSummary" },
+        "signRequest": { "$ref": "#/definitions/signRequestResult" },
+        "policyCheck": { "$ref": "#/definitions/policyCheckResult" },
+        "simulate": { "$ref": "#/definitions/simulateResult" }
+      }
+    },
+    "assetTransferPrepareResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "erc20Call", "humanReadableSummary", "signRequest", "txRequest"],
+      "properties": {
+        "action": { "$ref": "#/definitions/action" },
+        "erc20Call": { "$ref": "#/definitions/erc20Call" },
+        "humanReadableSummary": { "$ref": "#/definitions/assetTransferSummary" },
+        "signRequest": { "$ref": "#/definitions/signRequestResult" },
+        "txRequest": { "$ref": "#/definitions/txRequest" }
+      }
+    },
+    "assetTransferPrepareWithContextResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accountContext", "action", "erc20Call", "humanReadableSummary", "signRequest", "txRequest"],
+      "properties": {
+        "accountContext": { "$ref": "#/definitions/accountContext" },
+        "action": { "$ref": "#/definitions/action" },
+        "erc20Call": { "$ref": "#/definitions/erc20Call" },
+        "humanReadableSummary": { "$ref": "#/definitions/assetTransferSummary" },
+        "signRequest": { "$ref": "#/definitions/signRequestResult" },
+        "policyCheck": { "$ref": "#/definitions/policyCheckResult" },
+        "txRequest": { "$ref": "#/definitions/txRequest" }
+      }
+    },
+    "assetTransferExecuteReceiptStatus": {
+      "type": "string",
+      "enum": ["success", "reverted", "timeout"]
+    },
+    "assetTransferExecuteResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "action",
+        "erc20Call",
+        "humanReadableSummary",
+        "signRequest",
+        "txRequest",
+        "receiptStatus",
+        "assetTransferResult"
+      ],
+      "properties": {
+        "action": { "$ref": "#/definitions/action" },
+        "erc20Call": { "$ref": "#/definitions/erc20Call" },
+        "humanReadableSummary": { "$ref": "#/definitions/assetTransferSummary" },
+        "signRequest": { "$ref": "#/definitions/signRequestResult" },
+        "txRequest": { "$ref": "#/definitions/txRequest" },
+        "receiptStatus": { "$ref": "#/definitions/assetTransferExecuteReceiptStatus" },
+        "assetTransferResult": { "$ref": "#/definitions/assetTransferResult" }
+      }
+    },
+    "assetTransferExecuteWithContextResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "accountContext",
+        "action",
+        "erc20Call",
+        "humanReadableSummary",
+        "signRequest",
+        "txRequest",
+        "receiptStatus",
+        "assetTransferResult"
+      ],
+      "properties": {
+        "accountContext": { "$ref": "#/definitions/accountContext" },
+        "action": { "$ref": "#/definitions/action" },
+        "erc20Call": { "$ref": "#/definitions/erc20Call" },
+        "humanReadableSummary": { "$ref": "#/definitions/assetTransferSummary" },
+        "signRequest": { "$ref": "#/definitions/signRequestResult" },
+        "policyCheck": { "$ref": "#/definitions/policyCheckResult" },
+        "txRequest": { "$ref": "#/definitions/txRequest" },
+        "receiptStatus": { "$ref": "#/definitions/assetTransferExecuteReceiptStatus" },
+        "assetTransferResult": { "$ref": "#/definitions/assetTransferResult" }
+      }
+    },
+    "assetTransferExecutionPlanResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "erc20Call", "humanReadableSummary", "signRequest"],
+      "properties": {
+        "action": { "$ref": "#/definitions/action" },
+        "erc20Call": { "$ref": "#/definitions/erc20Call" },
+        "humanReadableSummary": { "$ref": "#/definitions/assetTransferSummary" },
+        "signRequest": { "$ref": "#/definitions/signRequestResult" },
+        "simulateExecuteInput": { "$ref": "#/definitions/executeBaseInput" },
+        "prepareExecuteInput": { "$ref": "#/definitions/executeBaseInput" }
+      }
+    },
+    "assetTransferExecutionPlanWithContextResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accountContext", "action", "erc20Call", "humanReadableSummary", "signRequest"],
+      "properties": {
+        "accountContext": { "$ref": "#/definitions/accountContext" },
+        "action": { "$ref": "#/definitions/action" },
+        "erc20Call": { "$ref": "#/definitions/erc20Call" },
+        "humanReadableSummary": { "$ref": "#/definitions/assetTransferSummary" },
+        "signRequest": { "$ref": "#/definitions/signRequestResult" },
+        "policyCheck": { "$ref": "#/definitions/policyCheckResult" },
+        "simulateExecuteInput": { "$ref": "#/definitions/executeBaseInput" },
+        "prepareExecuteInput": { "$ref": "#/definitions/executeBaseInput" }
+      }
+    },
+    "assetTransferExecutionStatus": {
+      "type": "string",
+      "enum": ["pending", "submitted", "confirmed", "failed", "skipped"]
+    },
+    "assetTransferExecutionError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "message": { "type": "string", "minLength": 1 },
+        "retriable": { "type": "boolean" },
+        "details": { "type": "object" }
+      }
+    },
+    "assetTransferReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["blockNumber"],
+      "properties": {
+        "blockNumber": { "type": "string", "pattern": "^[0-9]+$" },
+        "blockHash": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+        "confirmations": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "assetTransferResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "summary", "updatedAt", "attempt", "plan"],
+      "properties": {
+        "status": { "$ref": "#/definitions/assetTransferExecutionStatus" },
+        "summary": { "type": "string", "minLength": 1 },
+        "updatedAt": { "type": "string", "minLength": 1 },
+        "submittedAt": { "type": "string", "minLength": 1 },
+        "completedAt": { "type": "string", "minLength": 1 },
+        "attempt": { "type": "integer", "minimum": 1 },
+        "chainId": { "type": "integer", "minimum": 1 },
+        "txHash": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+        "receipt": { "$ref": "#/definitions/assetTransferReceipt" },
+        "output": { "type": "object" },
+        "error": { "$ref": "#/definitions/assetTransferExecutionError" },
+        "plan": { "$ref": "#/definitions/assetTransferResultPlan" }
+      }
+    },
+    "assetTransferResultPlan": {
+      "anyOf": [
+        { "$ref": "#/definitions/assetTransferPlanResult" },
+        { "$ref": "#/definitions/assetTransferExecutionPlanResult" },
+        { "$ref": "#/definitions/assetTransferPlanWithContextResult" },
+        { "$ref": "#/definitions/assetTransferExecutionPlanWithContextResult" }
+      ]
+    },
+    "fundAndActionPlanResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accountContext", "fundingTarget", "evaluatedAt", "fundingRequired", "followUpAction", "followUpActionPlan", "steps"],
+      "properties": {
+        "accountContext": { "$ref": "#/definitions/accountContext" },
+        "fundingPolicy": { "$ref": "#/definitions/fundingPolicy" },
+        "fundingTarget": { "$ref": "#/definitions/fundAndActionTargetResult" },
+        "evaluatedAt": { "type": "string", "minLength": 1 },
+        "fundingRequired": { "type": "boolean" },
+        "fundingPlan": { "$ref": "#/definitions/assetTransferExecutionPlanWithContextResult" },
+        "followUpAction": { "$ref": "#/definitions/followUpActionIntent" },
+        "followUpActionPlan": { "$ref": "#/definitions/followUpActionPlan" },
+        "steps": {
+          "type": "array",
+          "minItems": 2,
+          "items": { "$ref": "#/definitions/fundAndActionStep" }
+        }
+      }
+    },
+    "mandate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "vault",
+        "executor",
+        "nonce",
+        "deadline",
+        "authorityEpoch",
+        "allowedAdaptersRoot",
+        "maxDrawdownBps",
+        "maxCumulativeDrawdownBps",
+        "payloadDigest",
+        "extensionsHash"
+      ],
+      "properties": {
+        "vault": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "executor": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "nonce": { "type": "string", "pattern": "^[0-9]+$" },
+        "deadline": { "type": "string", "pattern": "^[0-9]+$" },
+        "authorityEpoch": { "type": "string", "pattern": "^[0-9]+$" },
+        "allowedAdaptersRoot": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+        "maxDrawdownBps": { "type": "string", "pattern": "^[0-9]+$" },
+        "maxCumulativeDrawdownBps": { "type": "string", "pattern": "^[0-9]+$" },
+        "payloadDigest": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" },
+        "extensionsHash": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" }
+      }
+    },
+    "bytes32Array": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^0x[a-fA-F0-9]{64}$" }
+    },
+    "txRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to", "data", "value"],
+      "properties": {
+        "from": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "to": { "type": "string", "pattern": "^0x[a-fA-F0-9]{40}$" },
+        "data": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$" },
+        "value": { "type": "string", "pattern": "^[0-9]+$" },
+        "gas": { "type": "string", "pattern": "^[0-9]+$" }
+      }
+    }
+  }
+}

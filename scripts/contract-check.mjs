@@ -11,7 +11,6 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 
 const repoRoot = process.cwd();
-const DEFAULT_CONTRACT_VERSION = "v0.2.0-agent-contract";
 const CONTRACT_VERSION_ENV_KEY = "ERC_MANDATED_CONTRACT_VERSION";
 
 let inCompatCompare = false;
@@ -26,6 +25,17 @@ function readJson(p) {
   } catch (e) {
     fail(`invalid json at ${p}: ${e.message}`);
   }
+}
+
+function readDefaultContractVersion() {
+  const latestPath = path.join(repoRoot, "packages", "mcp", "contracts", "latest.json");
+  const latestDoc = readJson(latestPath);
+
+  if (!latestDoc || typeof latestDoc.contractVersion !== "string" || latestDoc.contractVersion.length === 0) {
+    fail(`invalid latest contract metadata at ${latestPath}`);
+  }
+
+  return latestDoc.contractVersion;
 }
 
 function readJsonFromGit(ref, relPath) {
@@ -45,7 +55,7 @@ function parseArgs(argv) {
     baseRef: null,
     contractVersion: typeof envContractVersion === "string" && envContractVersion.length > 0
       ? envContractVersion
-      : DEFAULT_CONTRACT_VERSION
+      : readDefaultContractVersion()
   };
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];

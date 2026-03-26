@@ -8,14 +8,35 @@ import {
   FactoryConfigError,
   prepareCreateVaultTx,
   predictVaultAddress,
+  type FactoryAddressSource,
   type VaultFactoryReadClient
 } from "./factory.js";
 
-const BSC_FACTORY_ENV_KEYS = [
+const BSC_TESTNET_FACTORY_ENV_KEYS = [
   "BSC_TESTNET_FACTORY_ADDRESS",
   "BSC_TESTNET_FACTORY",
   "FACTORY_ADDRESS"
 ] as const;
+
+const BSC_MAINNET_FACTORY_ENV_KEYS = [
+  "BSC_MAINNET_FACTORY_ADDRESS",
+  "BSC_FACTORY_ADDRESS",
+  "FACTORY_ADDRESS"
+] as const;
+
+const BASE_MAINNET_FACTORY_ENV_KEYS = [
+  "BASE_MAINNET_FACTORY_ADDRESS",
+  "BASE_FACTORY_ADDRESS",
+  "FACTORY_ADDRESS"
+] as const;
+
+const BSC_TESTNET_REGISTRY_FACTORY = "0xbC71DD7c14aD11384143A40166EAeCD6cc9bAb95" as Address;
+const BSC_MAINNET_REGISTRY_FACTORY = "0x6eFC613Ece5D95e4a7b69B4EddD332CeeCbb61c6" as Address;
+const CONTRACT_VERSION_ENV = "ERC_MANDATED_CONTRACT_VERSION";
+
+function assertFactorySource(value: unknown, expected: FactoryAddressSource): void {
+  assert.equal(value, expected);
+}
 
 function snapshotEnv(keys: readonly string[]): Record<string, string | undefined> {
   const snapshot: Record<string, string | undefined> = {};
@@ -91,6 +112,7 @@ test("prepareCreateVaultTx encodes calldata selector and builds txRequest with v
   assert.equal(output.result.txRequest.from, from);
   assert.equal(output.result.txRequest.value, "0");
   assert.equal(output.result.txRequest.data, expectedData);
+  assertFactorySource(output.result.factorySource, "input");
 
   const createVaultSelector = toFunctionSelector(
     "function createVault(address asset, string name, string symbol, address authority, bytes32 salt)"
@@ -134,7 +156,7 @@ test("predictVaultAddress uses readContract with non-creator overload args", asy
 });
 
 test("predictVaultAddress defaults chainId=97 and reads factory from env", async () => {
-  const envSnapshot = snapshotEnv(BSC_FACTORY_ENV_KEYS);
+  const envSnapshot = snapshotEnv(BSC_TESTNET_FACTORY_ENV_KEYS);
   const predictedVault = "0x6666666666666666666666666666666666666666" as Address;
   const envFactory = "0x7777777777777777777777777777777777777777" as Address;
 
@@ -157,6 +179,7 @@ test("predictVaultAddress defaults chainId=97 and reads factory from env", async
     );
 
     assert.equal(output.result.predictedVault, predictedVault);
+    assertFactorySource(output.result.factorySource, "env");
     assert.equal(calls.length, 1);
     assert.equal(calls[0]?.address, envFactory);
   } finally {
@@ -164,8 +187,72 @@ test("predictVaultAddress defaults chainId=97 and reads factory from env", async
   }
 });
 
-test("predictVaultAddress throws FACTORY_ADDRESS_NOT_CONFIGURED when env is missing", async () => {
-  const envSnapshot = snapshotEnv(BSC_FACTORY_ENV_KEYS);
+test("predictVaultAddress resolves from registry on BSC Testnet when input/env are missing", async () => {
+  const envSnapshot = snapshotEnv(BSC_TESTNET_FACTORY_ENV_KEYS);
+
+  delete process.env.BSC_TESTNET_FACTORY_ADDRESS;
+  delete process.env.BSC_TESTNET_FACTORY;
+  delete process.env.FACTORY_ADDRESS;
+
+  try {
+    const predictedVault = "0x6666666666666666666666666666666666666666" as Address;
+    const { client, calls } = buildMockReadClient(predictedVault);
+
+    const output = await predictVaultAddress(
+      {
+        chainId: 97,
+        asset: "0x2222222222222222222222222222222222222222" as Address,
+        name: "RegistryFallback",
+        symbol: "RF",
+        authority: "0x3333333333333333333333333333333333333333" as Address,
+        salt: `0x${"33".repeat(32)}` as Hash
+      },
+      { client }
+    );
+
+    assert.equal(output.result.predictedVault, predictedVault);
+    assertFactorySource(output.result.factorySource, "registry");
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0]?.address, BSC_TESTNET_REGISTRY_FACTORY);
+  } finally {
+    restoreEnv(envSnapshot);
+  }
+});
+
+test("predictVaultAddress resolves from registry on BSC Mainnet when input/env are missing", async () => {
+  const envSnapshot = snapshotEnv(BSC_MAINNET_FACTORY_ENV_KEYS);
+
+  delete process.env.BSC_MAINNET_FACTORY_ADDRESS;
+  delete process.env.BSC_FACTORY_ADDRESS;
+  delete process.env.FACTORY_ADDRESS;
+
+  try {
+    const predictedVault = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as Address;
+    const { client, calls } = buildMockReadClient(predictedVault);
+
+    const output = await predictVaultAddress(
+      {
+        chainId: 56,
+        asset: "0x2222222222222222222222222222222222222222" as Address,
+        name: "MainnetRegistryFallback",
+        symbol: "MRF",
+        authority: "0x3333333333333333333333333333333333333333" as Address,
+        salt: `0x${"55".repeat(32)}` as Hash
+      },
+      { client }
+    );
+
+    assert.equal(output.result.predictedVault, predictedVault);
+    assertFactorySource(output.result.factorySource, "registry");
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0]?.address, BSC_MAINNET_REGISTRY_FACTORY);
+  } finally {
+    restoreEnv(envSnapshot);
+  }
+});
+
+test("predictVaultAddress keeps old behavior when active deployment registry version has no packaged entries", async () => {
+  const envSnapshot = snapshotEnv(BSC_TESTNET_FACTORY_ENV_KEYS);
 
   delete process.env.BSC_TESTNET_FACTORY_ADDRESS;
   delete process.env.BSC_TESTNET_FACTORY;
@@ -178,11 +265,52 @@ test("predictVaultAddress throws FACTORY_ADDRESS_NOT_CONFIGURED when env is miss
       async () => {
         await predictVaultAddress(
           {
+            chainId: 97,
             asset: "0x2222222222222222222222222222222222222222" as Address,
-            name: "NoEnv",
-            symbol: "NE",
+            name: "LegacyContractLine",
+            symbol: "LCL",
             authority: "0x3333333333333333333333333333333333333333" as Address,
-            salt: `0x${"33".repeat(32)}` as Hash
+            salt: `0x${"58".repeat(32)}` as Hash
+          },
+          {
+            client,
+            deploymentContractVersion: "v0.3.0-agent-contract"
+          }
+        );
+      },
+      (error: unknown) => {
+        assert.ok(error instanceof FactoryConfigError);
+        assert.equal(error.code, "FACTORY_ADDRESS_NOT_CONFIGURED");
+        assert.equal(error.chainId, 97);
+        return true;
+      }
+    );
+  } finally {
+    restoreEnv(envSnapshot);
+  }
+});
+
+test("predictVaultAddress respects ERC_MANDATED_CONTRACT_VERSION for legacy contract line", async () => {
+  const envSnapshot = snapshotEnv([...BSC_TESTNET_FACTORY_ENV_KEYS, CONTRACT_VERSION_ENV]);
+
+  delete process.env.BSC_TESTNET_FACTORY_ADDRESS;
+  delete process.env.BSC_TESTNET_FACTORY;
+  delete process.env.FACTORY_ADDRESS;
+  process.env[CONTRACT_VERSION_ENV] = "v0.3.0-agent-contract";
+
+  try {
+    const { client } = buildMockReadClient("0x1111111111111111111111111111111111111111" as Address);
+
+    await assert.rejects(
+      async () => {
+        await predictVaultAddress(
+          {
+            chainId: 97,
+            asset: "0x2222222222222222222222222222222222222222" as Address,
+            name: "LegacyContractLineEnv",
+            symbol: "LCLE",
+            authority: "0x3333333333333333333333333333333333333333" as Address,
+            salt: `0x${"59".repeat(32)}` as Hash
           },
           { client }
         );
@@ -191,8 +319,79 @@ test("predictVaultAddress throws FACTORY_ADDRESS_NOT_CONFIGURED when env is miss
         assert.ok(error instanceof FactoryConfigError);
         assert.equal(error.code, "FACTORY_ADDRESS_NOT_CONFIGURED");
         assert.equal(error.chainId, 97);
+        return true;
+      }
+    );
+  } finally {
+    restoreEnv(envSnapshot);
+  }
+});
+
+test("predictVaultAddress prefers input factory over env and registry", async () => {
+  const envSnapshot = snapshotEnv(BSC_TESTNET_FACTORY_ENV_KEYS);
+  const inputFactory = "0x1111111111111111111111111111111111111111" as Address;
+  const envFactory = "0x7777777777777777777777777777777777777777" as Address;
+
+  process.env.BSC_TESTNET_FACTORY_ADDRESS = envFactory;
+  delete process.env.BSC_TESTNET_FACTORY;
+  delete process.env.FACTORY_ADDRESS;
+
+  try {
+    const predictedVault = "0x9999999999999999999999999999999999999999" as Address;
+    const { client, calls } = buildMockReadClient(predictedVault);
+
+    const output = await predictVaultAddress(
+      {
+        chainId: 97,
+        factory: inputFactory,
+        asset: "0x2222222222222222222222222222222222222222" as Address,
+        name: "InputPriority",
+        symbol: "IP",
+        authority: "0x3333333333333333333333333333333333333333" as Address,
+        salt: `0x${"66".repeat(32)}` as Hash
+      },
+      { client }
+    );
+
+    assert.equal(output.result.predictedVault, predictedVault);
+    assertFactorySource(output.result.factorySource, "input");
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0]?.address, inputFactory);
+  } finally {
+    restoreEnv(envSnapshot);
+  }
+});
+
+test("predictVaultAddress throws FACTORY_ADDRESS_NOT_CONFIGURED on Base Mainnet when input/env are missing", async () => {
+  const envSnapshot = snapshotEnv(BASE_MAINNET_FACTORY_ENV_KEYS);
+
+  delete process.env.BASE_MAINNET_FACTORY_ADDRESS;
+  delete process.env.BASE_FACTORY_ADDRESS;
+  delete process.env.FACTORY_ADDRESS;
+
+  try {
+    const { client } = buildMockReadClient("0x1111111111111111111111111111111111111111" as Address);
+
+    await assert.rejects(
+      async () => {
+        await predictVaultAddress(
+          {
+            chainId: 8453,
+            asset: "0x2222222222222222222222222222222222222222" as Address,
+            name: "NoBaseDefault",
+            symbol: "NBD",
+            authority: "0x3333333333333333333333333333333333333333" as Address,
+            salt: `0x${"77".repeat(32)}` as Hash
+          },
+          { client }
+        );
+      },
+      (error: unknown) => {
+        assert.ok(error instanceof FactoryConfigError);
+        assert.equal(error.code, "FACTORY_ADDRESS_NOT_CONFIGURED");
+        assert.equal(error.chainId, 8453);
         assert.equal(error.field, "factory");
-        assert.deepEqual(error.envKeys, [...BSC_FACTORY_ENV_KEYS]);
+        assert.deepEqual(error.envKeys, [...BASE_MAINNET_FACTORY_ENV_KEYS]);
         return true;
       }
     );
@@ -202,7 +401,7 @@ test("predictVaultAddress throws FACTORY_ADDRESS_NOT_CONFIGURED when env is miss
 });
 
 test("predictVaultAddress fails fast for invalid factory env address and reports envKey", async () => {
-  const envSnapshot = snapshotEnv(BSC_FACTORY_ENV_KEYS);
+  const envSnapshot = snapshotEnv(BSC_TESTNET_FACTORY_ENV_KEYS);
 
   process.env.BSC_TESTNET_FACTORY_ADDRESS = "0x123";
   delete process.env.BSC_TESTNET_FACTORY;

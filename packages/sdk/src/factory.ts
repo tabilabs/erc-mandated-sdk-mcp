@@ -9,6 +9,7 @@ import {
 import { vaultFactoryAbi } from "./abi/vaultFactory.js";
 import { resolveChainId, createPublicViemClient } from "./shared.js";
 import { getChainConfig } from "./networks.js";
+import { getDefaultDeployment } from "./deployments.js";
 import { ErcMandatedSdkError } from "./errors.js";
 
 export type FactoryConfigErrorCode =
@@ -23,6 +24,7 @@ export class FactoryConfigError extends ErcMandatedSdkError {
   readonly envKey?: string;
   readonly envKeys?: string[];
   readonly value?: string;
+  readonly factorySource?: FactoryAddressSource;
 
   constructor(
     message: string,
@@ -33,6 +35,7 @@ export class FactoryConfigError extends ErcMandatedSdkError {
       envKey?: string;
       envKeys?: string[];
       value?: string;
+      factorySource?: FactoryAddressSource;
     }
   ) {
     super(message, {
@@ -43,7 +46,8 @@ export class FactoryConfigError extends ErcMandatedSdkError {
         field: params.field,
         envKey: params.envKey,
         envKeys: params.envKeys,
-        value: params.value
+        value: params.value,
+        factorySource: params.factorySource
       }
     });
     this.code = params.code;
@@ -52,6 +56,7 @@ export class FactoryConfigError extends ErcMandatedSdkError {
     this.envKey = params.envKey;
     this.envKeys = params.envKeys;
     this.value = params.value;
+    this.factorySource = params.factorySource;
   }
 }
 
@@ -71,15 +76,19 @@ export interface FactoryCreateVaultPrepareInput extends FactoryBaseInput {
   from: Address;
 }
 
+export type FactoryAddressSource = "input" | "env" | "registry";
+
 export interface FactoryPredictVaultAddressOutput {
   result: {
     predictedVault: Address;
+    factorySource: FactoryAddressSource;
   };
 }
 
 export interface FactoryCreateVaultPrepareOutput {
   result: {
     predictedVault: Address;
+    factorySource: FactoryAddressSource;
     txRequest: {
       from: Address;
       to: Address;
@@ -122,18 +131,26 @@ function validateSaltBytes32(salt: string, chainId: number): asserts salt is Has
   }
 }
 
-function resolveFactoryAddress(factory: Address | undefined, chainId: number): Address {
+function resolveFactoryAddress(
+  factory: Address | undefined,
+  chainId: number,
+  deploymentContractVersion?: string
+): { address: Address; source: FactoryAddressSource } {
   if (factory !== undefined) {
     if (!isAddress(factory)) {
       throw new FactoryConfigError("Invalid factory address provided in input.factory.", {
         code: "INVALID_FACTORY_ADDRESS",
         chainId,
         field: "factory",
-        value: factory
+        value: factory,
+        factorySource: "input"
       });
     }
 
-    return factory;
+    return {
+      address: factory,
+      source: "input"
+    };
   }
 
   const envCandidates = getFactoryEnvCandidates(chainId);
@@ -150,11 +167,25 @@ function resolveFactoryAddress(factory: Address | undefined, chainId: number): A
         chainId,
         field: "factory",
         envKey: key,
-        value
+        value,
+        factorySource: "env"
       });
     }
 
-    return value;
+    return {
+      address: value,
+      source: "env"
+    };
+  }
+
+  const defaultDeployment = getDefaultDeployment(chainId, {
+    contractVersion: deploymentContractVersion
+  });
+  if (defaultDeployment) {
+    return {
+      address: defaultDeployment.factory,
+      source: "registry"
+    };
   }
 
   throw new FactoryConfigError(
@@ -177,10 +208,16 @@ async function predictVaultAddressInternal(
   options?: {
     client?: VaultFactoryReadClient;
     creator?: Address;
+    deploymentContractVersion?: string;
   }
 ): Promise<FactoryPredictVaultAddressOutput> {
   const chainId = resolveChainId(input.chainId);
-  const factory = resolveFactoryAddress(input.factory, chainId);
+  const factoryResolution = resolveFactoryAddress(
+    input.factory,
+    chainId,
+    options?.deploymentContractVersion
+  );
+  const factory = factoryResolution.address;
   validateSaltBytes32(input.salt, chainId);
 
   const client = options?.client ?? createDefaultReadClient(chainId);
@@ -197,7 +234,8 @@ async function predictVaultAddressInternal(
 
   return {
     result: {
-      predictedVault
+      predictedVault,
+      factorySource: factoryResolution.source
     }
   };
 }
@@ -206,6 +244,7 @@ export async function predictVaultAddress(
   input: FactoryPredictVaultAddressInput,
   options?: {
     client?: VaultFactoryReadClient;
+    deploymentContractVersion?: string;
   }
 ): Promise<FactoryPredictVaultAddressOutput> {
   return predictVaultAddressInternal(input, options);
@@ -215,10 +254,16 @@ export async function prepareCreateVaultTx(
   input: FactoryCreateVaultPrepareInput,
   options?: {
     client?: VaultFactoryReadClient;
+    deploymentContractVersion?: string;
   }
 ): Promise<FactoryCreateVaultPrepareOutput> {
   const chainId = resolveChainId(input.chainId);
-  const factory = resolveFactoryAddress(input.factory, chainId);
+  const factoryResolution = resolveFactoryAddress(
+    input.factory,
+    chainId,
+    options?.deploymentContractVersion
+  );
+  const factory = factoryResolution.address;
   validateSaltBytes32(input.salt, chainId);
 
   const data = encodeFunctionData({
@@ -239,13 +284,15 @@ export async function prepareCreateVaultTx(
     },
     {
       client: options?.client,
-      creator: input.from
+      creator: input.from,
+      deploymentContractVersion: options?.deploymentContractVersion
     }
   );
 
   return {
     result: {
       predictedVault: prediction.result.predictedVault,
+      factorySource: factoryResolution.source,
       txRequest: {
         from: input.from,
         to: factory,

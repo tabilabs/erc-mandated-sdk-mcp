@@ -6,34 +6,6 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 
 import * as sdk from "@erc-mandated/sdk";
 
-const DEFAULT_SDK_ADAPTER = {
-  createAgentAccountContext: sdk.createAgentAccountContext,
-  createAgentFundingPolicy: sdk.createAgentFundingPolicy,
-  buildFundAndActionPlan: sdk.buildFundAndActionPlan,
-  createFundAndActionExecutionSession: sdk.createFundAndActionExecutionSession,
-  applyFundAndActionExecutionEvent: sdk.applyFundAndActionExecutionEvent,
-  resolveFundAndActionExecutionTask: sdk.resolveFundAndActionExecutionTask,
-  createFollowUpActionResult: sdk.createFollowUpActionResult,
-  createAssetTransferResult: sdk.createAssetTransferResult,
-  checkAssetTransferAgainstFundingPolicy: sdk.checkAssetTransferAgainstFundingPolicy,
-  buildAssetTransferPlanFromAccountContext: sdk.buildAssetTransferPlanFromAccountContext,
-  executeAssetTransferFromAccountContext: executeAssetTransferFromAccountContextWithRuntime,
-  bootstrapVault: bootstrapVaultWithRuntime,
-  healthCheckVault: sdk.healthCheckVault,
-  buildAssetTransferPlan: sdk.buildAssetTransferPlan,
-  executeAssetTransfer: executeAssetTransferWithRuntime,
-  buildMandateSignRequest: sdk.buildMandateSignRequest,
-  predictVaultAddress: sdk.predictVaultAddress,
-  prepareCreateVaultTx: sdk.prepareCreateVaultTx,
-  simulateExecuteVault: sdk.simulateExecuteVault,
-  prepareExecuteTx: sdk.prepareExecuteTx,
-
-  checkNonceUsed: sdk.checkNonceUsed,
-  checkMandateRevoked: sdk.checkMandateRevoked,
-  prepareInvalidateNonceTx: sdk.prepareInvalidateNonceTx,
-  prepareRevokeMandateTx: sdk.prepareRevokeMandateTx
-};
-
 import { type LoadedTool, loadTools } from "./contract/loadTools.js";
 import { toToolError } from "./errors.js";
 import { buildErrorToolResult, makeTextContent, normalizeAjvErrors } from "./errorResponse.js";
@@ -47,6 +19,39 @@ import { loadSupportedChainsFromEnv } from "./supportedChains.js";
 import { handleToolCall } from "./tools/handlers.js";
 import type { SdkAdapter } from "./tools/sdkAdapter.js";
 
+function createDefaultSdkAdapter(contractVersion: string): SdkAdapter {
+  return {
+    createAgentAccountContext: sdk.createAgentAccountContext,
+    createAgentFundingPolicy: sdk.createAgentFundingPolicy,
+    buildFundAndActionPlan: sdk.buildFundAndActionPlan,
+    createFundAndActionExecutionSession: sdk.createFundAndActionExecutionSession,
+    applyFundAndActionExecutionEvent: sdk.applyFundAndActionExecutionEvent,
+    resolveFundAndActionExecutionTask: sdk.resolveFundAndActionExecutionTask,
+    createFollowUpActionResult: sdk.createFollowUpActionResult,
+    createAssetTransferResult: sdk.createAssetTransferResult,
+    checkAssetTransferAgainstFundingPolicy: sdk.checkAssetTransferAgainstFundingPolicy,
+    buildAssetTransferPlanFromAccountContext: sdk.buildAssetTransferPlanFromAccountContext,
+    executeAssetTransferFromAccountContext: executeAssetTransferFromAccountContextWithRuntime,
+    bootstrapVault: bootstrapVaultWithRuntime,
+    healthCheckVault: sdk.healthCheckVault,
+    buildAssetTransferPlan: sdk.buildAssetTransferPlan,
+    executeAssetTransfer: executeAssetTransferWithRuntime,
+    buildMandateSignRequest: sdk.buildMandateSignRequest,
+    predictVaultAddress: (input) =>
+      sdk.predictVaultAddress(input, { deploymentContractVersion: contractVersion }),
+    prepareCreateVaultTx: (input) =>
+      sdk.prepareCreateVaultTx(input, { deploymentContractVersion: contractVersion }),
+    getDefaultDeployment: (chainId) =>
+      sdk.getDefaultDeployment(chainId, { contractVersion }),
+    simulateExecuteVault: sdk.simulateExecuteVault,
+    prepareExecuteTx: sdk.prepareExecuteTx,
+    checkNonceUsed: sdk.checkNonceUsed,
+    checkMandateRevoked: sdk.checkMandateRevoked,
+    prepareInvalidateNonceTx: sdk.prepareInvalidateNonceTx,
+    prepareRevokeMandateTx: sdk.prepareRevokeMandateTx
+  };
+}
+
 export interface McpInfo {
   name: string;
   version: string;
@@ -55,7 +60,7 @@ export interface McpInfo {
 export function getMcpInfo(): McpInfo {
   return {
     name: "@erc-mandated/mcp",
-    version: "0.2.0"
+    version: "0.3.1"
   };
 }
 
@@ -195,7 +200,7 @@ export async function createMcpServer(options?: McpServerOptions): Promise<{ ser
       contractVersion: contract.contractVersion
     });
 
-    const sdkAdapter = options?.sdkAdapter ?? DEFAULT_SDK_ADAPTER;
+    const sdkAdapter = options?.sdkAdapter ?? createDefaultSdkAdapter(contract.contractVersion);
 
     const structured = await handleToolCall(tool.name, request.params.arguments ?? {}, sdkAdapter);
 

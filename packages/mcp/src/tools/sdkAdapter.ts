@@ -19,6 +19,7 @@ import type {
   healthCheckVault,
   predictVaultAddress,
   prepareCreateVaultTx,
+  getDefaultDeployment,
   prepareExecuteTx,
   prepareInvalidateNonceTx,
   prepareRevokeMandateTx,
@@ -44,6 +45,7 @@ export interface SdkAdapter {
   buildMandateSignRequest: typeof buildMandateSignRequest;
   predictVaultAddress: typeof predictVaultAddress;
   prepareCreateVaultTx: typeof prepareCreateVaultTx;
+  getDefaultDeployment: typeof getDefaultDeployment;
   simulateExecuteVault: typeof simulateExecuteVault;
   prepareExecuteTx: typeof prepareExecuteTx;
 

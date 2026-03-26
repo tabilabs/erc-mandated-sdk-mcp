@@ -91,6 +91,21 @@ export async function handleToolCall(toolName: string, args: JsonObject, sdk: Sd
         return (await sdk.prepareCreateVaultTx(input)) as unknown as JsonResult;
       }
 
+      case "factory_get_default_address": {
+        const input = args as { chainId: number };
+        const deployment = sdk.getDefaultDeployment(input.chainId);
+        return {
+          result: {
+            deployment: deployment
+              ? {
+                  chainId: deployment.chainId,
+                  factory: deployment.factory
+                }
+              : null
+          }
+        } as JsonResult;
+      }
+
       case "mandate_build_sign_request": {
         const input = args as unknown as ToolInput<"buildMandateSignRequest">;
         return (await sdk.buildMandateSignRequest(input)) as unknown as JsonResult;

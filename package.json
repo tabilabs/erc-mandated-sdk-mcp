@@ -11,8 +11,8 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm -ws run build",
-    "test": "npm -ws run test",
+    "build": "npm --workspace @erc-mandated/sdk run build && npm --workspace @erc-mandated/mcp run build",
+    "test": "npm --workspace @erc-mandated/sdk run test && npm --workspace @erc-mandated/mcp run test",
     "contract-check": "node scripts/contract-check.mjs",
     "changeset": "changeset",
     "version-packages": "changeset version",

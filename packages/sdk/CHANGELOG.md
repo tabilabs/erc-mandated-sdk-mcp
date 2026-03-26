@@ -1,5 +1,14 @@
 # @erc-mandated/sdk
 
+## 0.3.1
+
+### Minor Changes
+
+- Add packaged default deployment registry for VaultFactory on BSC Testnet `97` and BSC Mainnet `56`.
+- Factory resolution now follows `input.factory > env > registry > error`.
+- Expose `getDefaultDeployment(chainId)` for querying packaged default factory deployments.
+- Include `factorySource` in `predictVaultAddress` and `prepareCreateVaultTx` results to show whether factory came from `input`, `env`, or `registry`.
+
 ## 0.3.0
 
 ### Minor Changes

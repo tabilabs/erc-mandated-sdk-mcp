@@ -6,7 +6,7 @@ export interface SdkInfo {
 export function getSdkInfo(): SdkInfo {
   return {
     name: "@erc-mandated/sdk",
-    version: "0.2.0"
+    version: "0.3.1"
   };
 }
 
@@ -117,6 +117,7 @@ export {
 export {
   FactoryConfigError,
   type FactoryConfigErrorCode,
+  type FactoryAddressSource,
   predictVaultAddress,
   prepareCreateVaultTx,
   type FactoryPredictVaultAddressInput,
@@ -125,6 +126,12 @@ export {
   type FactoryCreateVaultPrepareOutput,
   type VaultFactoryReadClient
 } from "./factory.js";
+
+export {
+  ACTIVE_DEPLOYMENT_REGISTRY_VERSION,
+  getDefaultDeployment,
+  type DeploymentRegistryEntry
+} from "./deployments.js";
 
 export {
   VaultHealthCheckError,

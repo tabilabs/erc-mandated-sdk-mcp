@@ -19,6 +19,8 @@ import {
   SUPPORTED_CHAINS_JSON_ENV
 } from "./supportedChains.js";
 
+const CONTRACT_VERSION_ENV = "ERC_MANDATED_CONTRACT_VERSION";
+
 test("tools/list must exactly match frozen contract tool names", async (t) => {
   const { client, server } = await createConnectedClient();
 
@@ -183,7 +185,7 @@ test("missing required fields must return toolError(code/message)", async (t) =>
   assert.equal(structured.error?.details?.addedResultFromSchemaRepair, true);
 });
 
-test("valid input without factory address config must return structured error", async (t) => {
+test("valid input on Base Mainnet without factory address config must return structured error", async (t) => {
   const { client, server } = await createConnectedClient();
 
   t.after(async () => {
@@ -193,24 +195,25 @@ test("valid input without factory address config must return structured error", 
 
   // Ensure this test does not depend on local/CI environment variable state.
   const savedEnv = {
-    BSC_TESTNET_FACTORY_ADDRESS: process.env.BSC_TESTNET_FACTORY_ADDRESS,
-    BSC_TESTNET_FACTORY: process.env.BSC_TESTNET_FACTORY,
+    BASE_MAINNET_FACTORY_ADDRESS: process.env.BASE_MAINNET_FACTORY_ADDRESS,
+    BASE_FACTORY_ADDRESS: process.env.BASE_FACTORY_ADDRESS,
     FACTORY_ADDRESS: process.env.FACTORY_ADDRESS
   };
 
-  delete process.env.BSC_TESTNET_FACTORY_ADDRESS;
-  delete process.env.BSC_TESTNET_FACTORY;
+  delete process.env.BASE_MAINNET_FACTORY_ADDRESS;
+  delete process.env.BASE_FACTORY_ADDRESS;
   delete process.env.FACTORY_ADDRESS;
 
   t.after(() => {
-    process.env.BSC_TESTNET_FACTORY_ADDRESS = savedEnv.BSC_TESTNET_FACTORY_ADDRESS;
-    process.env.BSC_TESTNET_FACTORY = savedEnv.BSC_TESTNET_FACTORY;
+    process.env.BASE_MAINNET_FACTORY_ADDRESS = savedEnv.BASE_MAINNET_FACTORY_ADDRESS;
+    process.env.BASE_FACTORY_ADDRESS = savedEnv.BASE_FACTORY_ADDRESS;
     process.env.FACTORY_ADDRESS = savedEnv.FACTORY_ADDRESS;
   });
 
   const result = await client.callTool({
     name: "factory_predict_vault_address",
     arguments: {
+      chainId: 8453,
       asset: "0x2222222222222222222222222222222222222222",
       name: "Vault",
       symbol: "VLT",
@@ -230,6 +233,232 @@ test("valid input without factory address config must return structured error", 
   assert.ok((structured.error?.message ?? "").length > 0);
   assert.notEqual(typeof structured.result, "undefined");
   assert.equal(structured.error?.details?.addedResultFromSchemaRepair, true);
+});
+
+test("factory_predict_vault_address returns factorySource=registry on BSC Testnet fallback", async (t) => {
+  const { client, server } = await createConnectedClient({
+    predictVaultAddress: async () => {
+      throw Object.assign(new Error("probe registry source"), {
+        code: "SDK_ERROR",
+        details: {
+          factorySource: "registry"
+        }
+      });
+    }
+  } as any);
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "factory_predict_vault_address",
+    arguments: {
+      chainId: 97,
+      asset: "0x2222222222222222222222222222222222222222",
+      name: "Vault",
+      symbol: "VLT",
+      authority: "0x1111111111111111111111111111111111111111",
+      salt: "0x" + "1".repeat(64)
+    }
+  });
+
+  const structured = result.structuredContent as {
+    error?: { code?: string; details?: { factorySource?: string } };
+  };
+
+  assert.equal(result.isError, true);
+  assert.equal(structured.error?.code, "SDK_ERROR");
+  assert.equal(structured.error?.details?.factorySource, "registry");
+});
+
+test("factory_get_default_address returns packaged deployment for BSC Testnet", async (t) => {
+  const { client, server } = await createConnectedClient();
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "factory_get_default_address",
+    arguments: {
+      chainId: 97
+    }
+  });
+
+  const structured = result.structuredContent as {
+    result?: { deployment?: { chainId?: number; factory?: string } | null };
+  };
+
+  assert.equal(result.isError, false);
+  assert.equal(structured.result?.deployment?.chainId, 97);
+  assert.equal(structured.result?.deployment?.factory, "0xbC71DD7c14aD11384143A40166EAeCD6cc9bAb95");
+});
+
+test("factory_get_default_address returns null for chain without packaged deployment", async (t) => {
+  const { client, server } = await createConnectedClient();
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "factory_get_default_address",
+    arguments: {
+      chainId: 8453
+    }
+  });
+
+  const structured = result.structuredContent as {
+    result?: { deployment?: { chainId?: number; factory?: string } | null };
+  };
+
+  assert.equal(result.isError, false);
+  assert.equal(structured.result?.deployment, null);
+});
+
+test("factory_predict_vault_address success path includes factorySource under latest contract", async (t) => {
+  const { client, server } = await createConnectedClient({
+    predictVaultAddress: async () => ({
+      result: {
+        predictedVault: "0x4444444444444444444444444444444444444444",
+        factorySource: "registry"
+      }
+    })
+  } as any);
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "factory_predict_vault_address",
+    arguments: {
+      chainId: 97,
+      asset: "0x2222222222222222222222222222222222222222",
+      name: "Vault",
+      symbol: "VLT",
+      authority: "0x1111111111111111111111111111111111111111",
+      salt: "0x" + "1".repeat(64)
+    }
+  });
+
+  const structured = result.structuredContent as {
+    result?: { predictedVault?: string; factorySource?: string };
+  };
+
+  assert.equal(result.isError, false);
+  assert.equal(structured.result?.predictedVault, "0x4444444444444444444444444444444444444444");
+  assert.equal(structured.result?.factorySource, "registry");
+});
+
+test("factory_create_vault_prepare success path includes factorySource under latest contract", async (t) => {
+  const { client, server } = await createConnectedClient({
+    prepareCreateVaultTx: async () => ({
+      result: {
+        predictedVault: "0x4444444444444444444444444444444444444444",
+        factorySource: "env",
+        txRequest: {
+          from: "0x3333333333333333333333333333333333333333",
+          to: "0x1111111111111111111111111111111111111111",
+          data: "0x1234",
+          value: "0"
+        }
+      }
+    })
+  } as any);
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const result = await client.callTool({
+    name: "factory_create_vault_prepare",
+    arguments: {
+      chainId: 97,
+      from: "0x3333333333333333333333333333333333333333",
+      asset: "0x2222222222222222222222222222222222222222",
+      name: "Vault",
+      symbol: "VLT",
+      authority: "0x1111111111111111111111111111111111111111",
+      salt: "0x" + "1".repeat(64)
+    }
+  });
+
+  const structured = result.structuredContent as {
+    result?: {
+      predictedVault?: string;
+      factorySource?: string;
+      txRequest?: { to?: string };
+    };
+  };
+
+  assert.equal(result.isError, false);
+  assert.equal(structured.result?.predictedVault, "0x4444444444444444444444444444444444444444");
+  assert.equal(structured.result?.factorySource, "env");
+  assert.equal(structured.result?.txRequest?.to, "0x1111111111111111111111111111111111111111");
+});
+
+test("v0.3.0 contract keeps old factory behavior and does not expose new default-address tool", async (t) => {
+  const savedContractVersion = process.env[CONTRACT_VERSION_ENV];
+  const savedEnv = {
+    BSC_TESTNET_FACTORY_ADDRESS: process.env.BSC_TESTNET_FACTORY_ADDRESS,
+    BSC_TESTNET_FACTORY: process.env.BSC_TESTNET_FACTORY,
+    FACTORY_ADDRESS: process.env.FACTORY_ADDRESS
+  };
+
+  process.env[CONTRACT_VERSION_ENV] = "v0.3.0-agent-contract";
+  delete process.env.BSC_TESTNET_FACTORY_ADDRESS;
+  delete process.env.BSC_TESTNET_FACTORY;
+  delete process.env.FACTORY_ADDRESS;
+
+  t.after(() => {
+    if (savedContractVersion === undefined) {
+      delete process.env[CONTRACT_VERSION_ENV];
+    } else {
+      process.env[CONTRACT_VERSION_ENV] = savedContractVersion;
+    }
+
+    process.env.BSC_TESTNET_FACTORY_ADDRESS = savedEnv.BSC_TESTNET_FACTORY_ADDRESS;
+    process.env.BSC_TESTNET_FACTORY = savedEnv.BSC_TESTNET_FACTORY;
+    process.env.FACTORY_ADDRESS = savedEnv.FACTORY_ADDRESS;
+  });
+
+  const { client, server } = await createConnectedClient();
+
+  t.after(async () => {
+    await client.close();
+    await server.close();
+  });
+
+  const listed = await client.listTools();
+  assert.equal(listed.tools.some((tool) => tool.name === "factory_get_default_address"), false);
+
+  const result = await client.callTool({
+    name: "factory_predict_vault_address",
+    arguments: {
+      chainId: 97,
+      asset: "0x2222222222222222222222222222222222222222",
+      name: "Vault",
+      symbol: "VLT",
+      authority: "0x1111111111111111111111111111111111111111",
+      salt: "0x" + "1".repeat(64)
+    }
+  });
+
+  const structured = result.structuredContent as {
+    error?: { code?: string; details?: { chainId?: number; envKeys?: string[] } };
+  };
+
+  assert.equal(result.isError, true);
+  assert.equal(structured.error?.code, "FACTORY_ADDRESS_NOT_CONFIGURED");
+  assert.equal(structured.error?.details?.chainId, 97);
+  assert.ok((structured.error?.details?.envKeys ?? []).includes("BSC_TESTNET_FACTORY_ADDRESS"));
 });
 
 test("startup supportedChains option registers additional chains for factory tools", async (t) => {
@@ -377,13 +606,13 @@ test("strict mode turns handler error payload mismatch into INTERNAL_OUTPUT_SCHE
   process.env.MCP_SCHEMA_REPAIR_MODE = "strict";
 
   const savedEnv = {
-    BSC_TESTNET_FACTORY_ADDRESS: process.env.BSC_TESTNET_FACTORY_ADDRESS,
-    BSC_TESTNET_FACTORY: process.env.BSC_TESTNET_FACTORY,
+    BASE_MAINNET_FACTORY_ADDRESS: process.env.BASE_MAINNET_FACTORY_ADDRESS,
+    BASE_FACTORY_ADDRESS: process.env.BASE_FACTORY_ADDRESS,
     FACTORY_ADDRESS: process.env.FACTORY_ADDRESS
   };
 
-  delete process.env.BSC_TESTNET_FACTORY_ADDRESS;
-  delete process.env.BSC_TESTNET_FACTORY;
+  delete process.env.BASE_MAINNET_FACTORY_ADDRESS;
+  delete process.env.BASE_FACTORY_ADDRESS;
   delete process.env.FACTORY_ADDRESS;
 
   t.after(() => {
@@ -393,8 +622,8 @@ test("strict mode turns handler error payload mismatch into INTERNAL_OUTPUT_SCHE
       process.env.MCP_SCHEMA_REPAIR_MODE = savedMode;
     }
 
-    process.env.BSC_TESTNET_FACTORY_ADDRESS = savedEnv.BSC_TESTNET_FACTORY_ADDRESS;
-    process.env.BSC_TESTNET_FACTORY = savedEnv.BSC_TESTNET_FACTORY;
+    process.env.BASE_MAINNET_FACTORY_ADDRESS = savedEnv.BASE_MAINNET_FACTORY_ADDRESS;
+    process.env.BASE_FACTORY_ADDRESS = savedEnv.BASE_FACTORY_ADDRESS;
     process.env.FACTORY_ADDRESS = savedEnv.FACTORY_ADDRESS;
   });
 
@@ -408,6 +637,7 @@ test("strict mode turns handler error payload mismatch into INTERNAL_OUTPUT_SCHE
   const result = await client.callTool({
     name: "factory_predict_vault_address",
     arguments: {
+      chainId: 8453,
       asset: "0x2222222222222222222222222222222222222222",
       name: "Vault",
       symbol: "VLT",
@@ -454,9 +684,9 @@ test("strict mode turns handler error payload mismatch into INTERNAL_OUTPUT_SCHE
       | undefined;
 
   assert.equal(originalDetails?.field, "factory");
-  assert.equal(originalDetails?.chainId, 97);
+  assert.equal(originalDetails?.chainId, 8453);
   assert.ok(Array.isArray(originalDetails?.envKeys));
-  assert.ok((originalDetails?.envKeys ?? []).includes("BSC_TESTNET_FACTORY_ADDRESS"));
+  assert.ok((originalDetails?.envKeys ?? []).includes("BASE_MAINNET_FACTORY_ADDRESS"));
 });
 
 test("success path must return INTERNAL_OUTPUT_SCHEMA_MISMATCH when outputSchema mismatches", async (t) => {
